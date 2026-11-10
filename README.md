@@ -2,7 +2,7 @@
 
 A modern, responsive task manager with a focus on clean UI/UX, built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. Milestone 1 of 6 (setup) is complete. The app runs, but it only shows a placeholder page so far.
+> **Status:** 🚧 In development. Milestones 1–2 of 7 (setup and design) are complete; now building the landing page (M3).
 
 ## Features
 
@@ -33,11 +33,12 @@ _None yet. Development starts after the design phase._
 ## Roadmap
 
 - [x] M1: Setup & foundations
-- [ ] M2: Design phase (references, wireframes, design system)
-- [ ] M3: Task logic (test-first)
-- [ ] M4: Dashboard UI
-- [ ] M5: Landing page, polish & deploy
-- [ ] M6: AI "break it down" feature (optional)
+- [x] M2: Design phase (see [docs/design.md](docs/design.md))
+- [ ] M3: Design system & landing page (3D particle wave)
+- [ ] M4: Task logic (test-first)
+- [ ] M5: Dashboard UI
+- [ ] M6: Polish & deploy
+- [ ] M7: AI "break it down" feature (optional)
 
 ## Getting Started
 
