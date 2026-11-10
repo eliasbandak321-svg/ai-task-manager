@@ -132,3 +132,51 @@
     }
   }
 }
+
+/*
+  Decorative backgrounds. They need multi-layer gradients and masks that are clearer
+  as named CSS classes than as long utility strings. Colours still come from tokens.
+  (`black` inside mask-image only controls opacity; it is not a visible colour.)
+*/
+@layer components {
+  /* Soft deep-blue glow behind the hero headline. */
+  .hero-halo {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    width: min(64rem, 140vw);
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    border-radius: 9999px;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in oklab, var(--color-glow-deep) 25%, transparent),
+      transparent
+    );
+  }
+
+  /* Lower 65% of the hero; fades the wave out at the top, bottom and sides. */
+  .wave-area {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 65%;
+    mask-image:
+      linear-gradient(to bottom, transparent, black 35%, black 70%, transparent),
+      linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+    mask-composite: intersect;
+  }
+
+  /* CSS-only wave: a curved band of glowing dots. */
+  .wave-fallback {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-glow) 60%, transparent) 1px,
+      transparent 1.5px
+    );
+    background-size: calc(var(--spacing) * 4.5) calc(var(--spacing) * 4.5);
+    mask-image: radial-gradient(140% 90% at 50% 120%, transparent 40%, black 55%, black 65%, transparent 80%);
+  }
+}

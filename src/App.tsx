@@ -1,24 +1,24 @@
-import { useState } from 'react'
+import { Features } from './components/Features'
+import { Hero } from './components/Hero'
+import { SiteFooter } from './components/SiteFooter'
+import { SiteHeader } from './components/SiteHeader'
 
-// Temporary smoke test: proves React, TypeScript and Tailwind work together.
-// Replaced by the landing page in Checkpoint 3.
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <main className="grid min-h-svh place-items-center bg-night px-4 text-center text-ink">
-      <div className="space-y-6">
-        <h1 className="font-display text-display font-semibold">AI Task Manager</h1>
-        <p className="text-lead text-ink-muted">React + TypeScript + Tailwind are working.</p>
-        <button
-          type="button"
-          onClick={() => setCount((c) => c + 1)}
-          className="rounded-md bg-ink px-5 py-2.5 font-medium text-night transition hover:bg-glow focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-glow"
-        >
-          Clicked {count} {count === 1 ? 'time' : 'times'}
-        </button>
-      </div>
-    </main>
+    <>
+      <a
+        href="#content"
+        className="sr-only rounded-full bg-glow px-4 py-2 text-sm font-semibold text-night focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-60"
+      >
+        Skip to content
+      </a>
+      <SiteHeader />
+      <main id="content" tabIndex={-1} className="focus:outline-none">
+        <Hero />
+        <Features />
+      </main>
+      <SiteFooter />
+    </>
   )
 }
 
