@@ -29,4 +29,14 @@ The developer is a student learning professional software engineering. Act as a 
 - Do not start frontend implementation until the design (M2) is agreed
 
 ## Commands
-_To be added after scaffolding (dev, build, test, lint)._
+Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Control blocks Vite's native bundler on native Windows.
+
+- `npm run dev`: start the dev server at http://localhost:5173
+- `npm run build`: typecheck, then build for production into `dist/`
+- `npm run preview`: serve the production build locally
+- `npm run lint`: lint with oxlint
+- `npm run typecheck`: typecheck with `tsc -b`
+- `npm test`: run Vitest in watch mode
+- `npm run test:run`: run all tests once (use before committing)
+
+Run `lint`, `typecheck`, `test:run`, and `build` before every commit.

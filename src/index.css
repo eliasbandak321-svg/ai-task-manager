@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/*
+  Design tokens. Anything defined in @theme becomes a Tailwind utility:
+  --color-night  ->  bg-night, text-night, border-night, ...
+  This is a starter set; the full design system arrives in Checkpoint 3.
+*/
+@theme {
+  --color-night: #01061a;
+  --color-ink: #ffffff;
+  --color-glow: #7fd4ff;
+}

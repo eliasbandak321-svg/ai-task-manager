@@ -3,17 +3,21 @@ node_modules/
 
 # Build output
 dist/
+dist-ssr/
 
 # Environment variables and secrets
 .env
 .env.local
 .env.*.local
+*.local
 
 # Log files
 *.log
 
-# VS Code settings
+# Editor settings
 .vscode/
+.idea/
+
 # Operating system files
 Thumbs.db
 Desktop.ini
