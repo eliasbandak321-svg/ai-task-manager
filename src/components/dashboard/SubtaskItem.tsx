@@ -2,7 +2,6 @@ import { ArrowDown, ArrowUp, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { updateSubtaskInputSchema, type Subtask } from '../../domain'
 import { useDeleteSubtask, useUpdateSubtask } from '../../hooks/queries'
-import { useToast } from '../../hooks/toast'
 import { errorMessage } from '../../lib/format'
 import { Button } from '../ui/Button'
 import { checkboxClass, controlClass } from '../ui/styles'
@@ -12,19 +11,21 @@ interface SubtaskItemProps {
   canMoveUp: boolean
   canMoveDown: boolean
   onMove: (offset: -1 | 1) => void
+  /** Feedback is shown inside the task dialog, not as a toast (a toast would sit behind the modal). */
+  onNotice: (text: string, tone: 'success' | 'error') => void
+  onDeleted: () => void
 }
 
 /** One checklist row: check off, rename inline, move up or down, or delete. */
-export function SubtaskItem({ subtask, canMoveUp, canMoveDown, onMove }: SubtaskItemProps) {
+export function SubtaskItem({ subtask, canMoveUp, canMoveDown, onMove, onNotice, onDeleted }: SubtaskItemProps) {
   const updateSubtask = useUpdateSubtask()
   const deleteSubtask = useDeleteSubtask()
-  const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(subtask.title)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const editButtonRef = useRef<HTMLButtonElement>(null)
-  const onError = (caught: unknown) => toast(errorMessage(caught), 'error')
+  const onError = (caught: unknown) => onNotice(errorMessage(caught), 'error')
 
   useEffect(() => {
     if (editing) inputRef.current?.focus()
@@ -45,7 +46,7 @@ export function SubtaskItem({ subtask, canMoveUp, canMoveDown, onMove }: Subtask
       return
     }
     if (parsed.data.title !== subtask.title) {
-      updateSubtask.mutate({ id: subtask.id, input: parsed.data }, { onError })
+      updateSubtask.mutateAsync({ id: subtask.id, input: parsed.data }).catch(onError)
     }
     stopEditing()
   }
@@ -101,7 +102,9 @@ export function SubtaskItem({ subtask, canMoveUp, canMoveDown, onMove }: Subtask
           type="checkbox"
           className={checkboxClass}
           checked={subtask.done}
-          onChange={(event) => updateSubtask.mutate({ id: subtask.id, input: { done: event.target.checked } }, { onError })}
+          onChange={(event) =>
+            updateSubtask.mutateAsync({ id: subtask.id, input: { done: event.target.checked } }).catch(onError)
+          }
         />
         <span className={`min-w-0 break-words text-sm ${subtask.done ? 'text-ink-subtle line-through' : 'text-ink'}`}>
           {subtask.title}
@@ -146,7 +149,10 @@ export function SubtaskItem({ subtask, canMoveUp, canMoveDown, onMove }: Subtask
           aria-label={`Delete “${subtask.title}”`}
           // mutateAsync, not mutate callbacks: this row unmounts once the subtask is gone.
           onClick={() =>
-            deleteSubtask.mutateAsync(subtask.id).then(() => toast(`Deleted subtask “${subtask.title}”`), onError)
+            deleteSubtask.mutateAsync(subtask.id).then(() => {
+              onNotice(`Deleted “${subtask.title}”`, 'success')
+              onDeleted()
+            }, onError)
           }
         >
           <Trash2 aria-hidden="true" className="size-4" />

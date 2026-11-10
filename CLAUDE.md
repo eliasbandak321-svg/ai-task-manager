@@ -51,7 +51,7 @@ The developer is a student learning professional software engineering. Act as a 
 - Explain important architectural decisions and each new technology briefly when it's introduced.
 - Maintain meaningful automated tests throughout: test-first for domain logic, isolation tests for every API resource.
 - Never claim something works without verifying it (run tests, lint, or the app and show the output).
-- The landing page and dashboard designs are temporary; don't redesign them before M10, but keep them accessible and responsive.
+- The landing page and dashboard designs are temporary. M10 is a complete visual redesign of both (approved decision); don't spend time on visual polish before then, but keep them accessible, responsive and usable.
 - Don't connect Vercel or deploy before M11.
 
 ## Commands

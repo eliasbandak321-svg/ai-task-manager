@@ -251,6 +251,9 @@ describe('dashboard: subtasks', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete “Draft outline”' }))
     await waitFor(() => expect(within(dialog).queryByRole('checkbox', { name: 'Draft outline' })).not.toBeInTheDocument())
+    // Feedback appears inside the dialog, and focus stays in the checklist.
+    expect(within(dialog).getByText('Deleted “Draft outline”')).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: 'New subtask' })).toHaveFocus()
 
     // The list row shows the checklist progress.
     await user.click(within(dialog).getByRole('button', { name: 'Close dialog' }))

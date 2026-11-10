@@ -43,7 +43,8 @@ export function AppShell() {
         </Container>
       </header>
 
-      <Container className="flex flex-col gap-6 py-6 lg:flex-row lg:items-start lg:gap-10 lg:py-10">
+      {/* pb-28 below lg: room to scroll the last controls above a notification (see Toaster). */}
+      <Container className="flex flex-col gap-6 pt-6 pb-28 lg:flex-row lg:items-start lg:gap-10 lg:py-10">
         <ProjectNav />
         <main id="main" ref={mainRef} tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
           <Outlet />

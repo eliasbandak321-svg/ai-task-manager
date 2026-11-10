@@ -2,7 +2,9 @@
 
 Single source of truth for the visual design of AI Task Manager. Code (design tokens in `src/index.css`) must match this document; change this document first when the design changes.
 
-**Status:** Approved (2026-11-10). The landing page is a **temporary design**: it stays accessible, responsive and usable, and its visual design is revisited in M10, after the app and the AI feature work.
+**Status:** Approved (2026-11-10). The landing page and the dashboard are **temporary designs**: they stay accessible, responsive and usable until M10.
+
+> **Decision (2026-11-10, M5 review):** M10 is a **complete visual redesign** of both the landing page and the dashboard, not a round of colour or styling tweaks. Layout, visual language, components and motion are all open for change; this document is rewritten for it at the start of M10. Until then, no time goes into visual polish: function, usability and accessibility come first.
 
 Every decision is tagged with where it came from; both kinds are approved:
 - **[Approved]**: agreed in an earlier design session
@@ -206,7 +208,7 @@ Icons come from `lucide-react`. It is tree-shaken, so only the icons we import a
 
 ## 10. Dashboard [Built in M5; temporary visual design until M10]
 
-The dashboard prioritises function, usability and accessibility. It reuses the landing page tokens, and its look is revisited in M10.
+The dashboard prioritises function, usability and accessibility. It reuses the landing page tokens. Its look is fully redesigned in M10 (see the decision at the top of this document); the functional behaviour below carries over.
 
 ### Routes
 
@@ -245,7 +247,7 @@ The dashboard prioritises function, usability and accessibility. It reuses the l
 ### Still to come
 
 - **Auth screens:** sign up and log in (M7), and password reset (M8), in the same visual language.
-- **AI Task Breakdown** (M9) and the visual redesign (M10).
+- **AI Task Breakdown** (M9) and the complete visual redesign of the landing page and dashboard (M10).
 
 ## 11. Resolved questions
 

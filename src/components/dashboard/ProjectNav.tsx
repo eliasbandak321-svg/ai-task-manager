@@ -40,7 +40,12 @@ export function ProjectNav() {
   const collapse = () => setExpanded(false)
 
   return (
-    <nav aria-label="Projects" className="lg:sticky lg:top-26 lg:w-64 lg:shrink-0">
+    // On large screens the sidebar scrolls on its own and keeps bottom padding, so a long
+    // project list can always be scrolled clear of the notification corner (see Toaster).
+    <nav
+      aria-label="Projects"
+      className="lg:sticky lg:top-26 lg:max-h-[calc(100svh-6.5rem)] lg:w-64 lg:shrink-0 lg:overflow-y-auto lg:pb-20"
+    >
       <Button
         variant="secondary"
         aria-expanded={expanded}

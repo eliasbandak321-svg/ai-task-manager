@@ -1,8 +1,7 @@
 import { Plus } from 'lucide-react'
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { createSubtaskInputSchema, LIMITS, subtaskProgress, toPercent, type Subtask, type Task } from '../../domain'
 import { useCreateSubtask, useReorderSubtasks } from '../../hooks/queries'
-import { useToast } from '../../hooks/toast'
 import { errorMessage } from '../../lib/format'
 import { Button } from '../ui/Button'
 import { ProgressBar } from '../ui/ProgressBar'
@@ -21,7 +20,10 @@ export function SubtaskList({ task, subtasks }: SubtaskListProps) {
   const [error, setError] = useState<string | null>(null)
   const createSubtask = useCreateSubtask()
   const reorderSubtasks = useReorderSubtasks()
-  const toast = useToast()
+  // Feedback for checklist actions, shown inside the dialog (see SubtaskItem).
+  const [notice, setNotice] = useState<{ text: string; tone: 'success' | 'error' } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const showNotice = (text: string, tone: 'success' | 'error') => setNotice({ text, tone })
   const headingId = useId()
   const inputId = useId()
   const errorId = `${inputId}-error`
@@ -56,7 +58,7 @@ export function SubtaskList({ task, subtasks }: SubtaskListProps) {
     const movedId = ids[target]
     reorderSubtasks.mutate(
       { taskId: task.id, orderedIds: ids },
-      { onError: (caught) => toast(errorMessage(caught), 'error') },
+      { onError: (caught) => showNotice(errorMessage(caught), 'error') },
     )
     // React may move the focused DOM node while reordering; put focus back on a move button.
     window.requestAnimationFrame(() => {
@@ -95,6 +97,9 @@ export function SubtaskList({ task, subtasks }: SubtaskListProps) {
               canMoveUp={index > 0}
               canMoveDown={index < subtasks.length - 1}
               onMove={(offset) => move(index, offset)}
+              onNotice={showNotice}
+              // The row (and its focused Delete button) is gone: keep focus in the checklist.
+              onDeleted={() => inputRef.current?.focus()}
             />
           ))}
         </ul>
@@ -109,6 +114,7 @@ export function SubtaskList({ task, subtasks }: SubtaskListProps) {
           </label>
           <div className="flex gap-2">
             <input
+              ref={inputRef}
               id={inputId}
               value={title}
               onChange={(event) => setTitle(event.target.value)}
@@ -130,6 +136,10 @@ export function SubtaskList({ task, subtasks }: SubtaskListProps) {
           )}
         </form>
       )}
+      {/* A polite live region inside the dialog, so the message is visible and announced. */}
+      <output className={`mt-2 block text-sm ${notice?.tone === 'error' ? 'text-danger' : 'text-ink-muted'}`}>
+        {notice?.text}
+      </output>
       <p className="mt-2 text-xs text-ink-subtle">Subtask changes are saved immediately.</p>
     </section>
   )

@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, and (soon) use AI to turn a complex goal into a concrete plan. Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M5 are complete: the dashboard works on local data stored in your browser. Next up: the backend and database (M6). The visual design is temporary and will be revisited in M10.
+> **Status:** 🚧 In development. M1–M5 are complete: the dashboard works on local data stored in your browser. Next up: the backend and database (M6). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
 
 ## Features
 
@@ -56,7 +56,7 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [ ] M7: Authentication & security (Better Auth, user isolation)
 - [ ] M8: Hardening (password reset, end-to-end tests, security review)
 - [ ] M9: AI Task Breakdown
-- [ ] M10: Visual design revisit
+- [ ] M10: Complete visual redesign (landing page and dashboard)
 - [ ] M11: Final testing & public deployment (Vercel, production database, email provider)
 
 Development and testing happen on localhost until M11. GitHub pull requests and CI are used throughout, and the code stays deployment-compatible (see [docs/architecture.md](docs/architecture.md) §9).

@@ -7,6 +7,11 @@ const DISMISS_AFTER_MS = { success: 4000, error: 8000 } as const
 /**
  * Provides useToast() and renders the notifications. The container is a live region that
  * exists from the start, so screen readers announce each new message ("Task deleted").
+ *
+ * Placement keeps notifications off interactive controls: only the latest one is shown; on
+ * large screens it sits in the bottom-left corner, beside the project sidebar and never over
+ * the task list; on small screens it sits at the bottom, and AppShell adds bottom padding so
+ * the last controls on the page can always be scrolled clear of it.
  */
 export function Toaster({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
@@ -18,7 +23,7 @@ export function Toaster({ children }: { children: ReactNode }) {
     (message, tone = 'success') => {
       nextId.current += 1
       const id = nextId.current
-      setToasts((current) => [...current.slice(-2), { id, message, tone }])
+      setToasts([{ id, message, tone }])
       window.setTimeout(() => dismiss(id), DISMISS_AFTER_MS[tone])
     },
     [dismiss],
@@ -29,7 +34,7 @@ export function Toaster({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-center gap-2 sm:items-end"
+        className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-center gap-2 lg:right-auto lg:w-64 lg:items-stretch"
       >
         {toasts.map((toast) => {
           const Icon = toast.tone === 'error' ? CircleAlert : CircleCheck
