@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+
+# VS Code settings
+.vscode/
+# Operating system files
+Thumbs.db
+Desktop.ini
+.DS_Store
