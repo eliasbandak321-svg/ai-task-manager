@@ -1,12 +1,241 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/sora";
 
 /*
-  Design tokens. Anything defined in @theme becomes a Tailwind utility:
-  --color-night  ->  bg-night, text-night, border-night, ...
-  This is a starter set; the full design system arrives in Checkpoint 3.
+  Design tokens. Source of truth: docs/design.md. Change the spec first, then this file.
+
+  Every variable in @theme becomes a Tailwind utility, for example:
+    --color-glow          -> bg-glow, text-glow, border-glow, ...
+    --text-display        -> text-display (with its own line height and tracking)
+    --radius-card         -> rounded-card
+    --container-content   -> max-w-content
 */
 @theme {
+  /*
+    Remove Tailwind's default palette so only our tokens exist.
+    A hard-coded colour like `bg-blue-500` then simply doesn't compile into anything,
+    which enforces the "tokens only" rule from CLAUDE.md.
+  */
+  --color-*: initial;
+
+  /* Core palette */
   --color-night: #01061a;
   --color-ink: #ffffff;
   --color-glow: #7fd4ff;
+  --color-glow-strong: #a8e3ff;
+  --color-glow-deep: #2563eb;
+  --color-surface: #070d24;
+  --color-raised: #0d1530;
+  --color-ink-muted: #a6b0c8;
+  --color-ink-subtle: #7d88a6;
+  --color-line: #1c2647;
+  --color-line-strong: #2c3a66;
+
+  /* Status and priority (used from M5) */
+  --color-status-todo: #a6b0c8;
+  --color-status-progress: #7fd4ff;
+  --color-status-done: #6ee7b7;
+  --color-priority-high: #ff8a9b;
+  --color-priority-medium: #ffc978;
+  --color-priority-low: #a6b0c8;
+
+  /* Typography */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --text-display: clamp(2.5rem, 1.5rem + 4.5vw, 4.75rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.03em;
+
+  --text-h2: clamp(2rem, 1.5rem + 2vw, 3rem);
+  --text-h2--line-height: 1.15;
+  --text-h2--letter-spacing: -0.02em;
+
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.35;
+  --text-h3--letter-spacing: -0.01em;
+
+  --text-lead: clamp(1.0625rem, 1rem + 0.4vw, 1.25rem);
+  --text-lead--line-height: 1.6;
+
+  --text-base: 1rem;
+  --text-base--line-height: 1.6;
+
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+
+  --text-eyebrow: 0.8125rem;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--letter-spacing: 0.12em;
+
+  /* Layout */
+  --container-content: 72rem;
+  --radius-card: 1.25rem;
+  --radius-control: 0.75rem;
+
+  /* Effects */
+  --shadow-glow: 0 0 2.5rem -0.5rem rgb(127 212 255 / 0.45);
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Entrance: fade in and rise 1rem. Used as the `animate-enter` utility. */
+  --animate-enter: enter var(--duration-slow) var(--ease-out-expo) both;
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+  }
+}
+
+@layer base {
+  /*
+    Durations aren't a Tailwind theme namespace, so they live here as plain CSS variables.
+    Use them as: duration-(--duration-fast)
+  */
+  :root {
+    --duration-fast: 150ms;
+    --duration-base: 300ms;
+    --duration-slow: 700ms;
+    --duration-fade: 1200ms;
+
+    /* Tells the browser to draw native UI (scrollbars, form controls) in dark mode. */
+    color-scheme: dark;
+  }
+
+  html {
+    background-color: var(--color-night);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: rgb(127 212 255 / 0.3);
+    color: var(--color-ink);
+  }
+
+  /* One focus style for every interactive element. Only shows for keyboard focus. */
+  :focus-visible {
+    outline: 2px solid var(--color-glow);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Reduced motion: remove movement everywhere, including from future components. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/*
+  Decorative backgrounds. They need multi-layer gradients and masks that are clearer
+  as named CSS classes than as long utility strings. Colours still come from tokens.
+  (`black` inside mask-image only controls opacity; it is not a visible colour.)
+*/
+@layer components {
+  /* Soft deep-blue glow behind the hero headline. */
+  .hero-halo {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    width: min(64rem, 140vw);
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    border-radius: 9999px;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in oklab, var(--color-glow-deep) 25%, transparent),
+      transparent
+    );
+  }
+
+  /* Lower 65% of the hero; fades the wave out at the top, bottom and sides. */
+  .wave-area {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 65%;
+    mask-image:
+      linear-gradient(to bottom, transparent, black 35%, black 70%, transparent),
+      linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+    mask-composite: intersect;
+  }
+
+  /* CSS-only wave: a curved band of glowing dots. */
+  .wave-fallback {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-glow) 60%, transparent) 1px,
+      transparent 1.5px
+    );
+    background-size: calc(var(--spacing) * 4.5) calc(var(--spacing) * 4.5);
+    mask-image: radial-gradient(140% 90% at 50% 120%, transparent 40%, black 55%, black 65%, transparent 80%);
+  }
+
+  /* Stagger: set --stagger (0, 1, 2…) on an element to delay it by 80 ms per step. */
+  .stagger {
+    animation-delay: calc(var(--stagger, 0) * 80ms);
+    transition-delay: calc(var(--stagger, 0) * 80ms);
+  }
+
+  /* Scroll reveal, driven by the useReveal hook through data-revealed. */
+  .reveal {
+    transition:
+      opacity var(--duration-slow) var(--ease-out-expo),
+      transform var(--duration-slow) var(--ease-out-expo);
+  }
+  .reveal[data-revealed="false"] {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  /* Soft light that follows the pointer inside a card (position set via --x / --y). */
+  .card-spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      22rem circle at var(--x, 50%) var(--y, 0%),
+      color-mix(in oklab, var(--color-glow) 9%, transparent),
+      transparent 70%
+    );
+    opacity: 0;
+    transition: opacity var(--duration-base) var(--ease-out-expo);
+  }
+  @media (hover: hover) {
+    .card-spotlight:hover::before {
+      opacity: 1;
+    }
+  }
+
+  /* Underline that slides in from the left on hover. */
+  .link-underline {
+    background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0 1px;
+    transition: background-size var(--duration-base) var(--ease-out-expo);
+  }
+  :where(a:hover) .link-underline,
+  a.link-underline:hover {
+    background-size: 100% 1px;
+  }
 }

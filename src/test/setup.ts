@@ -8,3 +8,7 @@ import { afterEach } from 'vitest'
 afterEach(() => {
   cleanup()
 })
+
+// jsdom has no canvas/WebGL; its getContext() logs "Not implemented". Returning null states
+// "no WebGL" explicitly, so components take their fallback path quietly.
+HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext
