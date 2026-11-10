@@ -19,7 +19,7 @@ export function SiteFooter() {
             href={site.repoUrl}
             className="inline-flex min-h-11 items-center gap-1 text-ink-muted transition-colors duration-(--duration-fast) hover:text-ink"
           >
-            Source on GitHub
+            <span className="link-underline">Source on GitHub</span>
             <ArrowUpRight aria-hidden="true" className="size-4" />
           </a>
           <p>

@@ -23,12 +23,12 @@ export function SiteHeader() {
           <ul className="flex items-center gap-1">
             <li>
               <a href="#features" className={navLinkClass}>
-                Features
+                <span className="link-underline">Features</span>
               </a>
             </li>
             <li className="hidden sm:block">
               <a href={site.repoUrl} className={navLinkClass}>
-                GitHub
+                <span className="link-underline">GitHub</span>
                 <ArrowUpRight aria-hidden="true" className="size-4" />
               </a>
             </li>

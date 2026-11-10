@@ -80,6 +80,16 @@
 
   /* Motion */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Entrance: fade in and rise 1rem. Used as the `animate-enter` utility. */
+  --animate-enter: enter var(--duration-slow) var(--ease-out-expo) both;
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+  }
 }
 
 @layer base {
@@ -179,5 +189,53 @@
     );
     background-size: calc(var(--spacing) * 4.5) calc(var(--spacing) * 4.5);
     mask-image: radial-gradient(140% 90% at 50% 120%, transparent 40%, black 55%, black 65%, transparent 80%);
+  }
+
+  /* Stagger: set --stagger (0, 1, 2…) on an element to delay it by 80 ms per step. */
+  .stagger {
+    animation-delay: calc(var(--stagger, 0) * 80ms);
+    transition-delay: calc(var(--stagger, 0) * 80ms);
+  }
+
+  /* Scroll reveal, driven by the useReveal hook through data-revealed. */
+  .reveal {
+    transition:
+      opacity var(--duration-slow) var(--ease-out-expo),
+      transform var(--duration-slow) var(--ease-out-expo);
+  }
+  .reveal[data-revealed="false"] {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  /* Soft light that follows the pointer inside a card (position set via --x / --y). */
+  .card-spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      22rem circle at var(--x, 50%) var(--y, 0%),
+      color-mix(in oklab, var(--color-glow) 9%, transparent),
+      transparent 70%
+    );
+    opacity: 0;
+    transition: opacity var(--duration-base) var(--ease-out-expo);
+  }
+  @media (hover: hover) {
+    .card-spotlight:hover::before {
+      opacity: 1;
+    }
+  }
+
+  /* Underline that slides in from the left on hover. */
+  .link-underline {
+    background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0 1px;
+    transition: background-size var(--duration-base) var(--ease-out-expo);
+  }
+  :where(a:hover) .link-underline,
+  a.link-underline:hover {
+    background-size: 100% 1px;
   }
 }
