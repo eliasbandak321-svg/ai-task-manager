@@ -207,6 +207,7 @@ Icons come from `lucide-react`. It is tree-shaken, so only the icons we import a
 - **Projects:** every task belongs to a project, and each user has a default "Inbox" project.
 - **Tasks:** quick creation, editing and deleting (with confirmation); status (To do, In progress, Done), priority and an optional deadline.
 - **Subtasks:** a one-level checklist inside a task.
+- **Deleting a project [Approved 2026-11-10]:** a confirmation dialog warns that the project's tasks and subtasks will be permanently deleted, shows their counts (from `planProjectDeletion`), and names the project. The destructive button is clearly labelled ("Delete project and N tasks"), focus starts on Cancel, and Escape cancels. The Inbox has no delete action.
 - **Finding work:** search, sorting, and filters by status and priority.
 - **Progress:** statistics with a progress indicator, per project and overall.
 - **States:** empty, loading and error states for every data view, since data is loaded asynchronously.
