@@ -162,7 +162,7 @@ Each card has an icon in a rounded tile, an index (`01`–`06`) in `ink-subtle`,
 | 02 | Clear statuses | Move work from To do to In progress to Done at a glance. | `Columns3` |
 | 03 | Priorities that matter | Mark what is urgent and filter out the noise. | `Flag` |
 | 04 | Progress you can see | Live statistics and a progress bar keep momentum visible. | `ChartNoAxesColumn` |
-| 05 | Private by design | Your projects and tasks belong to your account and are never visible to anyone else. | `ShieldCheck` |
+| 05 | Privacy-first, by design | Secure accounts and private task storage are coming with the full application. | `ShieldCheck` |
 | 06 | Break it down with AI | Split big tasks into concrete next steps. *Coming soon.* | `Sparkles` |
 
 Section heading: eyebrow `Features`, h2 `Everything you need to finish what you start.`, subheading `A focused set of tools that stays out of your way, from first idea to done.`

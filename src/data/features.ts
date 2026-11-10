@@ -31,8 +31,8 @@ export const features: readonly Feature[] = [
     icon: ChartNoAxesColumn,
   },
   {
-    title: 'Private by design',
-    description: 'Your projects and tasks belong to your account and are never visible to anyone else.',
+    title: 'Privacy-first, by design',
+    description: 'Secure accounts and private task storage are coming with the full application.',
     icon: ShieldCheck,
   },
   {
