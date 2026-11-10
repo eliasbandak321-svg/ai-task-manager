@@ -91,6 +91,7 @@
     --duration-fast: 150ms;
     --duration-base: 300ms;
     --duration-slow: 700ms;
+    --duration-fade: 1200ms;
 
     /* Tells the browser to draw native UI (scrollbars, form controls) in dark mode. */
     color-scheme: dark;

@@ -119,6 +119,7 @@ The glow is limited to the primary button, the hero halo, the particles and hove
 | `--duration-fast` | `150ms` | Colour and border changes |
 | `--duration-base` | `300ms` | Hover lifts, glow |
 | `--duration-slow` | `700ms` | Entrance and scroll reveals |
+| `--duration-fade` | `1200ms` | Particle wave fade-in |
 
 ### Choreography [Approved: subtle entrance, hover and scroll animations; details Proposed]
 
@@ -177,7 +178,7 @@ Icons come from `lucide-react`. It is tree-shaken, so only the icons we import a
 | Camera | Perspective, 45° field of view, low and slightly elevated, looking across the wave toward the horizon |
 | Interaction | Subtle camera parallax (about 2°) that follows the pointer, only on devices with a fine pointer (`pointer: fine`). No click or ripple effects. |
 | Performance | Loaded lazily (`React.lazy`), so it is not in the main bundle. Pixel ratio is capped at 1.5. Rendering pauses while the hero is off screen; browsers already pause it in background tabs. |
-| Budget | 3D chunk ≤ 200 kB gzip; the main bundle stays ≤ 90 kB gzip |
+| Budget | Main bundle ≤ 90 kB gzip. 3D chunk ≤ 250 kB gzip (revised from 200 kB after measuring 244 kB: React Three Fiber v9 registers all of Three.js, so it cannot be tree-shaken). The chunk loads only on desktop, after the text renders, and never on mobile. |
 | Accessibility | The canvas is decorative: `aria-hidden="true"`, not focusable. |
 
 ### Fallbacks
