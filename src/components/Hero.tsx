@@ -1,4 +1,4 @@
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, ArrowRight } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { ButtonLink } from './ButtonLink'
 import { Container } from './Container'
@@ -37,8 +37,12 @@ export function Hero() {
           AI Task Manager keeps your tasks, priorities and progress in one calm, focused workspace, so you always
           know what to do next.
         </p>
-        <div style={enter(3).style} className={`${enter(3).className} mt-10 flex justify-center`}>
-          <ButtonLink href="#features">
+        <div style={enter(3).style} className={`${enter(3).className} mt-10 flex flex-wrap justify-center gap-3`}>
+          <ButtonLink to="/app">
+            Open the app
+            <ArrowRight aria-hidden="true" className="size-4" />
+          </ButtonLink>
+          <ButtonLink href="#features" variant="secondary">
             Explore features
             <ArrowDown aria-hidden="true" className="size-4" />
           </ButtonLink>

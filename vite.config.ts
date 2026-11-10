@@ -9,6 +9,9 @@ export default defineConfig({
   test: {
     // jsdom simulates a browser DOM so components can render in Node.
     environment: 'jsdom',
+    // Half the CPU cores: each worker runs its own jsdom, and with every core busy, machines
+    // with little memory (e.g. a default WSL setup) start swapping and tests time out.
+    maxWorkers: '50%',
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
