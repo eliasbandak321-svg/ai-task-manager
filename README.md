@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, and (soon) use AI to turn a complex goal into a concrete plan. Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M4 (setup, design, landing page, domain logic) are complete. Next up: the functional dashboard (M5). The landing page design is temporary and will be revisited once the app works.
+> **Status:** 🚧 In development. M1–M5 are complete: the dashboard works on local data stored in your browser. Next up: the backend and database (M6). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
 
 ## Features
 
@@ -12,16 +12,13 @@ A full-stack productivity app for students, developers and professionals: organi
 - **Subtle motion**: staggered hero entrance, scroll reveals and card hover effects, all CSS-only and disabled under `prefers-reduced-motion`
 - **Accessibility**: skip link, landmarks, full keyboard support, visible focus and WCAG AA contrast (Lighthouse Accessibility 100)
 - **CI**: lint, typecheck, tests and build run on every pull request (GitHub Actions)
-- **Domain logic** (no UI yet): Zod schemas and pure, fully tested functions for projects, tasks, subtasks, deadlines, statistics, search, filtering and sorting
+- **Domain logic**: Zod schemas and pure, fully tested functions for projects, tasks, subtasks, deadlines, statistics, search, filtering and sorting
+- **Dashboard** (`/app`): projects with a default Inbox; tasks with statuses, priorities and deadlines; subtask checklists; progress statistics; search, filters and sorting kept in the URL; accessible dialogs with confirmation before deleting. Data is stored in your browser until the backend arrives in M6.
 
 ### Planned (MVP)
 - Accounts with email and password, with each user's data isolated and secure
-- Projects (with a default Inbox) and tasks with full create, read, update and delete
-- Subtask checklists, deadlines, statuses (To do, In progress, Done) and priorities
-- Dashboard with progress tracking
-- Search, sorting and filtering
-- PostgreSQL persistence
-- Responsive, accessible interface and automated tests
+- PostgreSQL persistence through an API, replacing browser storage
+- End-to-end tests and a security review
 - Public deployment once the app is complete, redesigned and fully tested
 
 ### Planned (AI)
@@ -35,8 +32,8 @@ A full-stack productivity app for students, developers and professionals: organi
 | React + TypeScript + Vite | Component-based SPA; types catch errors early; fast builds |
 | Tailwind CSS v4 | Design tokens and consistent styling in one place |
 | React Three Fiber + Three.js | Declarative 3D for the hero particle wave |
-| React Router + TanStack Query *(M5)* | Client routing; caching, loading and error states for server data |
-| Zod *(M4)* | One schema for both runtime validation and TypeScript types, shared by the frontend and the API |
+| React Router + TanStack Query | Client routing; caching, loading and error states for server data |
+| Zod | One schema for both runtime validation and TypeScript types, shared by the frontend and the API |
 | Hono *(M6)* | Small TypeScript API, served from the same domain as the app (Vercel Functions in production) |
 | PostgreSQL + Drizzle ORM *(M6)* (Neon in production) | Relational data, type-safe queries, versioned migrations |
 | Better Auth *(M7)* | Self-hosted email and password auth with secure cookie sessions |
@@ -54,12 +51,12 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [x] M2: Design phase
 - [x] M3: Design system & landing page, CI
 - [x] M4: Domain model & logic (test-first)
-- [ ] M5: Functional dashboard (local data, async repository)
+- [x] M5: Functional dashboard (local data, async repository)
 - [ ] M6: Backend & database (Hono, Neon, Drizzle)
 - [ ] M7: Authentication & security (Better Auth, user isolation)
 - [ ] M8: Hardening (password reset, end-to-end tests, security review)
 - [ ] M9: AI Task Breakdown
-- [ ] M10: Visual design revisit
+- [ ] M10: Complete visual redesign (landing page and dashboard)
 - [ ] M11: Final testing & public deployment (Vercel, production database, email provider)
 
 Development and testing happen on localhost until M11. GitHub pull requests and CI are used throughout, and the code stays deployment-compatible (see [docs/architecture.md](docs/architecture.md) §9).
@@ -74,7 +71,7 @@ Development and testing happen on localhost until M11. GitHub pull requests and 
 git clone https://github.com/eliasbandak321-svg/ai-task-manager.git
 cd ai-task-manager
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # http://localhost:5173 (the app is at /app)
 ```
 
 | Command | What it does |

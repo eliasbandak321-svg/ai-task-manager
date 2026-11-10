@@ -1,4 +1,5 @@
 import { ArrowUpRight } from 'lucide-react'
+import { Link } from 'react-router'
 import { site } from '../config/site'
 import { useScrolledPast } from '../hooks/useScrolledPast'
 import { Container } from './Container'
@@ -31,6 +32,14 @@ export function SiteHeader() {
                 <span className="link-underline">GitHub</span>
                 <ArrowUpRight aria-hidden="true" className="size-4" />
               </a>
+            </li>
+            <li>
+              <Link
+                to="/app"
+                className="ml-1 inline-flex min-h-11 items-center rounded-full border border-glow/40 px-4 text-sm font-semibold text-glow transition-colors duration-(--duration-fast) hover:bg-glow hover:text-night"
+              >
+                Open app
+              </Link>
             </li>
           </ul>
         </nav>

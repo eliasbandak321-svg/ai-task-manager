@@ -2,7 +2,9 @@
 
 Single source of truth for the visual design of AI Task Manager. Code (design tokens in `src/index.css`) must match this document; change this document first when the design changes.
 
-**Status:** Approved (2026-11-10). The landing page is a **temporary design**: it stays accessible, responsive and usable, and its visual design is revisited in M10, after the app and the AI feature work.
+**Status:** Approved (2026-11-10). The landing page and the dashboard are **temporary designs**: they stay accessible, responsive and usable until M10.
+
+> **Decision (2026-11-10, M5 review):** M10 is a **complete visual redesign** of both the landing page and the dashboard, not a round of colour or styling tweaks. Layout, visual language, components and motion are all open for change; this document is rewritten for it at the start of M10. Until then, no time goes into visual polish: function, usability and accessibility come first.
 
 Every decision is tagged with where it came from; both kinds are approved:
 - **[Approved]**: agreed in an earlier design session
@@ -37,6 +39,8 @@ Every decision is tagged with where it came from; both kinds are approved:
 | `--color-ink-subtle` | `#7d88a6` | Captions, eyebrow labels, footer | [Proposed] |
 | `--color-line` | `#1c2647` | Card borders, dividers (decorative) | [Proposed] |
 | `--color-line-strong` | `#2c3a66` | Hovered card borders | [Proposed] |
+| `--color-line-input` | `#5d6a94` | Form control borders (≥ 3:1 on every surface) | [Added in M5] |
+| `--color-danger` | `#ff8a9b` | Destructive buttons and error text | [Added in M5] |
 
 ### Status and priority colours (used from M5, defined now for consistency)
 
@@ -63,7 +67,7 @@ The three statuses are To do, In progress and Done **[Approved]**. Colour is nev
 | priority-high | 8.98 | 8.57 | 8.02 |
 | priority-medium | 13.32 | 12.71 | 11.89 |
 
-Every text colour passes AA (4.5:1) on every surface. Button text: `night` on `glow` = 12.25. `line` (1.36) and `line-strong` (1.83) are decorative only. Form inputs in the dashboard will need a border of at least 3:1; we will add an `--color-line-input` token in M5.
+Every text colour passes AA (4.5:1) on every surface. Button text: `night` on `glow` = 12.25. `line` (1.36) and `line-strong` (1.83) are decorative only. Form control borders use `line-input` (3.79 on `night`, 3.62 on `surface`, 3.39 on `raised`), which meets the 3:1 non-text contrast requirement. Error text and destructive buttons use `danger` (same value as `priority-high`; `night` on `danger` = 8.98).
 
 ## 3. Typography [Proposed]
 
@@ -139,7 +143,7 @@ The glow is limited to the primary button, the hero halo, the particles and hove
 | # | Section | Tag |
 |---|---|---|
 | 0 | Skip link ("Skip to content"), visible on focus | [Proposed] |
-| 1 | Header: wordmark, "Features" anchor link, GitHub link. Transparent at first; turns `surface` with a blur effect once the page is scrolled. | [Proposed] |
+| 1 | Header: wordmark, "Features" anchor link, GitHub link, and an "Open app" link (added in M5). Transparent at first; turns `surface` with a blur effect once the page is scrolled. | [Proposed] |
 | 2 | Hero: centered, with a large headline, description and CTA buttons, over the 3D particle wave | [Approved] |
 | 3 | Features: six cards | [Approved] |
 | 4 | Footer: wordmark, GitHub link, "Built with React, TypeScript and Three.js", © year | [Proposed] |
@@ -149,8 +153,8 @@ The glow is limited to the primary button, the hero halo, the particles and hove
 - **Eyebrow:** `Plan · Focus · Finish`
 - **Headline:** `Turn scattered tasks into steady progress.`
 - **Description:** `AI Task Manager keeps your tasks, priorities and progress in one calm, focused workspace, so you always know what to do next.`
-- **Primary CTA:** `Explore features` → `#features` (smooth scroll, or an instant jump when reduced motion is on)
-- No "Open the app" button and no placeholder app page until the dashboard works (see §10).
+- **Primary CTA (M5):** `Open the app` → `/app`
+- **Secondary CTA:** `Explore features` → `#features` (smooth scroll, or an instant jump when reduced motion is on)
 
 ### Feature cards [Approved: six cards in a TECHit-inspired presentation; content and style Proposed]
 
@@ -202,20 +206,48 @@ Icons come from `lucide-react`. It is tree-shaken, so only the icons we import a
 - External links (GitHub) say they open in a new tab, or open in the same tab
 - Information is never conveyed by colour alone, and the page is usable at 200% zoom and 320 px width
 
-## 10. Future dashboard [Approved scope, revised 2026-11-10]
+## 10. Dashboard [Built in M5; temporary visual design until M10]
 
-- **Projects:** every task belongs to a project, and each user has a default "Inbox" project.
-- **Tasks:** quick creation, editing and deleting (with confirmation); status (To do, In progress, Done), priority and an optional deadline.
-- **Subtasks:** a one-level checklist inside a task.
-- **Deleting a project [Approved 2026-11-10]:** a confirmation dialog warns that the project's tasks and subtasks will be permanently deleted, shows their counts (from `planProjectDeletion`), and names the project. The destructive button is clearly labelled ("Delete project and N tasks"), focus starts on Cancel, and Escape cancels. The Inbox has no delete action.
-- **Finding work:** search, sorting, and filters by status and priority.
-- **Progress:** statistics with a progress indicator, per project and overall.
-- **States:** empty, loading and error states for every data view, since data is loaded asynchronously.
-- **Layout:** "no sidebar, single column with a header" was approved for a single task list. Now that there are projects, the project navigation (header switcher, tabs or a sidebar) is **re-decided at the start of M5**.
-- **Auth screens:** sign up and log in (M7), and password reset (M8), all in the same visual language.
-- **Entry point:** when the app works, add an "Open the app" or "Get started" CTA to the header and hero, introducing React Router at the same time. No placeholder page or route before then.
-- **Visual language:** reuses the same tokens, `surface` / `raised` cards, button styles, focus ring and motion tokens.
-- **Spec timing:** the detailed dashboard layout is specified at the start of M5.
+The dashboard prioritises function, usability and accessibility. It reuses the landing page tokens. Its look is fully redesigned in M10 (see the decision at the top of this document); the functional behaviour below carries over.
+
+### Routes
+
+| URL | Page |
+|---|---|
+| `/app` | All tasks: every task across all projects |
+| `/app/projects/:projectId` | One project (the Inbox included) |
+| `/app/...?q=…&status=…&priority=…&due=…&sort=…&dir=…` | Search, filters and sorting live in the URL, so they survive a reload and can be bookmarked |
+| Unknown project or path | A "not found" message with a link back to All tasks |
+
+### Layout [Decided at the start of M5]
+
+- **Header:** wordmark (links to `/`) and a note that data is saved in this browser (accounts come in M7).
+- **Project navigation:** a sidebar (16 rem) on large screens (≥ 1024 px). On smaller screens it collapses into a full-width "Projects: <current>" button above the content that expands the same list, so the tasks stay at the top of the page. The list shows "All tasks", then the Inbox and the other projects with their completion percentage, plus a "New project" button.
+- **Page:** the title (`h1`), the actions (New task; Rename and Delete for regular projects only), the statistics panel, the quick-add field, the search and filter toolbar, a live result count, and the task list.
+- **Single column** inside the content area at every width; the task list never scrolls horizontally.
+
+### Components
+
+| Component | Behaviour |
+|---|---|
+| Statistics panel | Completion percentage with a progress bar, "x of y tasks done", counts for To do / In progress / Done / Overdue / Due today / Due in 3 days, and open tasks by priority. Overdue turns `danger` when above 0. |
+| Quick add | One line: type a title, press Enter, keep typing. Adds to the current project, or to the Inbox from All tasks. |
+| Toolbar | Search box; Status and Priority as checkbox chips; Deadline, Sort by and Order selects; "Clear filters". On small screens the filters fold behind a "Filters (n)" button. |
+| Task row | Title (opens the details dialog), priority, deadline label ("Due tomorrow", "Overdue by 2 days"), subtask progress (2/5), the project name in All tasks, and a status select. Done tasks are struck through. |
+| Task dialog | Title, description, project, status, priority, deadline. In edit mode it also holds the subtask checklist (check off, rename, move up/down, delete; saved immediately) and "Delete task". |
+| Toasts | Short confirmations ("Task saved") and errors at the bottom of the screen, in a live region. They close after 4 s (errors after 8 s) and can be dismissed. |
+| Empty, loading and error states | Every data view has them. Errors show a plain message and a "Try again" button, never technical details. |
+
+### Dialogs and destructive actions [Approved 2026-11-10]
+
+- All dialogs use the native `<dialog>` element: focus stays inside, the page behind is inert, Escape closes, and focus returns to the control that opened it.
+- **Deleting a project:** a confirmation dialog warns that the project's tasks and subtasks will be permanently deleted, shows their counts (from `planProjectDeletion`), and names the project. The destructive button is clearly labelled ("Delete project and N tasks"), focus starts on Cancel, and Escape cancels. The Inbox has no delete action.
+- **Deleting a task:** the same pattern, mentioning its subtasks. Deleting a single subtask needs no confirmation (it is small and quick to re-add).
+
+### Still to come
+
+- **Auth screens:** sign up and log in (M7), and password reset (M8), in the same visual language.
+- **AI Task Breakdown** (M9) and the complete visual redesign of the landing page and dashboard (M10).
 
 ## 11. Resolved questions
 

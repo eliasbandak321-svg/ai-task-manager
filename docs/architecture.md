@@ -22,7 +22,7 @@ flowchart LR
 | Technology | Role | Why this one |
 |---|---|---|
 | React + Vite (SPA) | User interface | Already in place. A single-page app is enough: the landing page doesn't need server rendering for this project's goals. |
-| React Router *(M5)* | Client-side pages (`/`, `/app/...`) | Standard routing for React SPAs. |
+| React Router *(M5)* | Client-side pages (`/`, `/app/...`) | Standard routing for React SPAs. Used in declarative mode (`<BrowserRouter>` + `<Routes>`): we load data with TanStack Query, so the router's data APIs aren't needed. |
 | TanStack Query *(M5)* | Server state: fetching, caching, loading and error states, refetching after changes | Avoids hand-written `useEffect` + `useState` fetching code, which is a common source of bugs (race conditions, stale data). |
 | Zod *(M4)* | Validates data at every boundary (form input, API requests, AI output) | One schema gives both a runtime check and a TypeScript type, and the same schema is shared by the frontend and the API. |
 | Hono *(M6)* | HTTP API framework | Small, fast and TypeScript-first. The same app runs on Node locally and on Vercel Functions in production, and the API is plain code that is easy to test. |
@@ -35,15 +35,19 @@ flowchart LR
 
 Exact versions are checked for compatibility when each milestone starts.
 
-## 3. Repository layout *(planned; finalised in M6)*
+## 3. Repository layout *(server folders planned; finalised in M6)*
 
 ```
 src/
   domain/        Pure business logic and Zod schemas (no React, no I/O). Shared with the API. Built in M4.
   data/          Repository interface plus adapters: local (M5) and HTTP (M6+)
-  components/    React components (one per file)
+  components/    React components (one per file): landing page at the top level,
+    dashboard/   dashboard features (task list, dialogs, navigation, …)
+    ui/          generic building blocks (Button, Dialog, Field, ProgressBar, states)
   hooks/         React hooks, including TanStack Query hooks over the repository
-  pages/         Route-level components (M5)
+  lib/           UI helpers without React: URL filters, labels and error messages
+  pages/         Route-level components: LandingPage, DashboardApp (lazy), TasksPage
+  test/          Test setup, factories and the shared repository contract
 server/          Hono app: routes, auth, database access (M6+)
   db/            Drizzle schema and queries
 server/dev.ts    Local Node entry point (M6)
@@ -86,16 +90,31 @@ docs/            design.md, architecture.md
 - Functions that combine data re-check ownership (`userId`) as **defence in depth**, even though the API will already scope every query.
 - Input schemas are **strict**: unknown keys such as `userId` or `completedAt` are rejected (mass-assignment protection).
 
-## 5. Frontend data flow
+## 5. Frontend data flow *(built in M5)*
 
 ```mermaid
 flowchart LR
-  UI[Components] --> Q[TanStack Query hooks] --> R{{Repository interface<br/>async}}
-  R --> L[LocalRepository<br/>M5]
-  R -.-> H[HttpRepository<br/>M6+]
+  UI[Components] --> Q[TanStack Query hooks<br/>src/hooks/queries.ts] --> R{{TaskRepository<br/>async interface}}
+  R --> L[LocalRepository<br/>localStorage · M5]
+  R -.-> H[HttpRepository<br/>/api · M6+]
+  L --> D[src/domain rules]
+  H -.-> S[Hono API] -.-> D
 ```
 
 **Why a repository interface?** Components never know where data lives. In M5 the dashboard runs entirely on a local adapter. In M6 we swap in the HTTP adapter, and the UI does not change. Because the interface is **async from day one**, loading and error states are built into the UI from the start, not bolted on later.
+
+**How it fits together:**
+
+| Piece | Role |
+|---|---|
+| `src/data/repository.ts` | The `TaskRepository` interface: one method per future REST endpoint. No method takes a `userId`: the adapter knows the user (locally from storage, later from the server session). |
+| `src/test/repositoryContract.ts` | One shared test suite describing how *any* repository must behave (validation, rules, cascades, not-found). LocalRepository passes it now; the HTTP adapter must pass the same suite in M6. |
+| `src/data/localRepository.ts` | The M5 adapter. It validates every input with the shared Zod schemas, applies every rule through `src/domain` (no rules are re-implemented), scopes every read and write to one user id, and validates saved data on load (it's external input too). The first visit creates a local user with an Inbox, like a sign-up. |
+| `src/pages/DashboardApp.tsx` | The only place that chooses the adapter. It is lazy-loaded, so landing-page visitors never download the dashboard, React Query or Zod. |
+| `src/hooks/queries.ts` | TanStack Query hooks: one cached list per resource (`projects`, `tasks`, `subtasks`). After a write, the affected lists are invalidated and refetched, so the UI shows exactly what was stored (including values the domain computes, like `completedAt`). Status changes, subtask check-offs and reordering are optimistic, with rollback on error. |
+| `src/lib/taskFilters.ts` | Search, filters and sorting live in the URL and are parsed with the domain's `taskQuerySchema`; invalid values fall back to defaults. |
+
+**Filtering happens in the browser** (`queryTasks` from the domain) on the user's full task list. That's fast for one person's tasks; if lists grow large, the same `TaskQuery` can move to API query parameters in M6.
 
 ## 6. Security model *(essential, not optional)*
 
@@ -174,3 +193,11 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-10 | Timestamps are ISO 8601 UTC strings, not `Date` objects | Identical in memory, in JSON and in the API; no serialisation surprises |
 | 2026-11-10 | Public deployment postponed to M11 | Build a complete, tested app first. Localhost and CI until then, with the deployment-compatibility rules in §9. |
 | 2026-11-10 | No multi-agent AI architecture | Task Breakdown is a single structured request |
+| 2026-11-10 | M10 is a complete visual redesign of the landing page and dashboard | Decided in the M5 review: the current look is a functional placeholder. Until M10, work goes into a complete, working application |
+| 2026-11-10 | M5: project navigation is a sidebar on large screens and a collapsible list on small ones | Projects need a permanent home on desktop; on phones the tasks stay first |
+| 2026-11-10 | M5: the dashboard is a lazy-loaded route (`/app/*`) | Keeps the landing page bundle within its 90 kB budget (88.6 kB gzip measured) |
+| 2026-11-10 | M5: search, filters and sorting are stored in the URL | Survive reloads, can be bookmarked, work with Back; validated like any input |
+| 2026-11-10 | M5: the repository lists all of a user's subtasks in one call | One cache entry feeds task-row progress, the task dialog and deletion counts; a user's data is small |
+| 2026-11-10 | M5: one shared contract test suite for every repository adapter | Proves the HTTP adapter (M6) behaves exactly like the local one, so the UI needs no changes |
+| 2026-11-10 | M5: dialogs use the native `<dialog>` element | Focus trapping, inert background and Escape come from the browser, not custom code |
+| 2026-11-10 | M5: components await `mutateAsync` for follow-up actions | `mutate` callbacks are skipped when a component unmounts first (e.g. a deleted task's dialog) |
