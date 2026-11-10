@@ -31,8 +31,8 @@ export const features: readonly Feature[] = [
     icon: ChartNoAxesColumn,
   },
   {
-    title: 'Private by default',
-    description: 'Your tasks stay in your browser. No account, no tracking.',
+    title: 'Private by design',
+    description: 'Your projects and tasks belong to your account and are never visible to anyone else.',
     icon: ShieldCheck,
   },
   {

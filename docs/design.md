@@ -2,7 +2,7 @@
 
 Single source of truth for the visual design of AI Task Manager. Code (design tokens in `src/index.css`) must match this document; change this document first when the design changes.
 
-**Status:** Approved (2026-11-10). One open question remains (§11).
+**Status:** Approved (2026-11-10). The landing page is a **temporary design**: it stays accessible, responsive and usable, and its visual design is revisited in M10, after the app and the AI feature work.
 
 Every decision is tagged with where it came from; both kinds are approved:
 - **[Approved]**: agreed in an earlier design session
@@ -162,8 +162,12 @@ Each card has an icon in a rounded tile, an index (`01`–`06`) in `ink-subtle`,
 | 02 | Clear statuses | Move work from To do to In progress to Done at a glance. | `Columns3` |
 | 03 | Priorities that matter | Mark what is urgent and filter out the noise. | `Flag` |
 | 04 | Progress you can see | Live statistics and a progress bar keep momentum visible. | `ChartNoAxesColumn` |
-| 05 | Private by default | Your tasks stay in your browser. No account, no tracking. | `ShieldCheck` |
+| 05 | Private by design | Your projects and tasks belong to your account and are never visible to anyone else. | `ShieldCheck` |
 | 06 | Break it down with AI | Split big tasks into concrete next steps. *Coming soon.* | `Sparkles` |
+
+Section heading: eyebrow `Features`, h2 `Everything you need to finish what you start.`, subheading `A focused set of tools that stays out of your way, from first idea to done.`
+
+Card 05 was rewritten on 2026-11-10: the original "stays in your browser, no account" became false once accounts and a database were added to the scope.
 
 Icons come from `lucide-react`. It is tree-shaken, so only the icons we import are bundled. The icons are decorative (`aria-hidden`), because the title carries the meaning.
 
@@ -198,17 +202,23 @@ Icons come from `lucide-react`. It is tree-shaken, so only the icons we import a
 - External links (GitHub) say they open in a new tab, or open in the same tab
 - Information is never conveyed by colour alone, and the page is usable at 200% zoom and 320 px width
 
-## 10. Future dashboard [Approved scope]
+## 10. Future dashboard [Approved scope, revised 2026-11-10]
 
-- Quick task creation, task statistics with a progress indicator, status and priority filters, and editing and deleting tasks
-- No sidebar; the layout is a single column with a header **[Approved]**
-- When the dashboard works, add an "Open the app" CTA to the header and hero, and introduce React Router at the same time. No placeholder page or route before then.
-- Reuses the same tokens, `surface` / `raised` cards, button styles, focus ring and motion tokens
-- Detailed dashboard layout to be specified at the start of M5
+- **Projects:** every task belongs to a project, and each user has a default "Inbox" project.
+- **Tasks:** quick creation, editing and deleting (with confirmation); status (To do, In progress, Done), priority and an optional deadline.
+- **Subtasks:** a one-level checklist inside a task.
+- **Finding work:** search, sorting, and filters by status and priority.
+- **Progress:** statistics with a progress indicator, per project and overall.
+- **States:** empty, loading and error states for every data view, since data is loaded asynchronously.
+- **Layout:** "no sidebar, single column with a header" was approved for a single task list. Now that there are projects, the project navigation (header switcher, tabs or a sidebar) is **re-decided at the start of M5**.
+- **Auth screens:** sign up and log in (M7), and password reset (M8, required before the public release), all in the same visual language.
+- **Entry point:** when the app works, add an "Open the app" or "Get started" CTA to the header and hero, introducing React Router at the same time. No placeholder page or route before then.
+- **Visual language:** reuses the same tokens, `surface` / `raised` cards, button styles, focus ring and motion tokens.
+- **Spec timing:** the detailed dashboard layout is specified at the start of M5.
 
-## 11. Open questions
+## 11. Resolved questions
 
-1. **GitHub link.** Proposal: link the header and footer to the public repository. Confirm that the repository URL is fine to show.
+1. **GitHub link:** the header and footer link to the public repository (accepted in the M3 review).
 
 ## 12. Performance targets [Proposed]
 
