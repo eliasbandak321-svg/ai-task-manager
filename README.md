@@ -2,12 +2,15 @@
 
 A modern, responsive task manager with a focus on clean UI/UX, built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. Milestones 1–2 of 7 (setup and design) are complete; now building the landing page (M3).
+> **Status:** 🚧 In development. Milestones 1–3 of 7 are complete: setup, design and the landing page. Next up: task logic (M4).
 
 ## Features
 
 ### Implemented
-_None yet. Development starts after the design phase._
+- **Landing page** with a design-token system (Tailwind CSS v4), self-hosted Sora and Inter fonts, and a responsive layout from 320 px upward
+- **3D particle wave** built with React Three Fiber and a custom GPU shader, lazy-loaded so it never blocks the page. Phones and browsers without WebGL get a CSS fallback, and reduced-motion users get a still frame.
+- **Subtle motion**: staggered hero entrance, scroll reveals and card hover effects, all CSS-only and disabled under `prefers-reduced-motion`
+- **Accessibility**: skip link, landmarks, full keyboard support, visible focus and WCAG AA contrast (Lighthouse Accessibility 100)
 
 ### Planned (MVP)
 - Create, edit, delete, and complete tasks
@@ -27,14 +30,15 @@ _None yet. Development starts after the design phase._
 | Vite | Fast dev server and build with minimal config |
 | Tailwind CSS | Design tokens and consistent styling in one place |
 | Vitest + React Testing Library | Tests for logic and user interactions |
-| oxlint | Fast linting that catches common bugs and React hook mistakes |
+| React Three Fiber + Three.js | Declarative 3D for the hero particle wave |
+| oxlint | Fast linting that catches common bugs, React hook mistakes and accessibility issues |
 | Vercel | Simple deployment from GitHub |
 
 ## Roadmap
 
 - [x] M1: Setup & foundations
 - [x] M2: Design phase (see [docs/design.md](docs/design.md))
-- [ ] M3: Design system & landing page (3D particle wave)
+- [x] M3: Design system & landing page (3D particle wave)
 - [ ] M4: Task logic (test-first)
 - [ ] M5: Dashboard UI
 - [ ] M6: Polish & deploy
