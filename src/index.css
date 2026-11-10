@@ -1,12 +1,134 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/sora";
 
 /*
-  Design tokens. Anything defined in @theme becomes a Tailwind utility:
-  --color-night  ->  bg-night, text-night, border-night, ...
-  This is a starter set; the full design system arrives in Checkpoint 3.
+  Design tokens. Source of truth: docs/design.md. Change the spec first, then this file.
+
+  Every variable in @theme becomes a Tailwind utility, for example:
+    --color-glow          -> bg-glow, text-glow, border-glow, ...
+    --text-display        -> text-display (with its own line height and tracking)
+    --radius-card         -> rounded-card
+    --container-content   -> max-w-content
 */
 @theme {
+  /*
+    Remove Tailwind's default palette so only our tokens exist.
+    A hard-coded colour like `bg-blue-500` then simply doesn't compile into anything,
+    which enforces the "tokens only" rule from CLAUDE.md.
+  */
+  --color-*: initial;
+
+  /* Core palette */
   --color-night: #01061a;
   --color-ink: #ffffff;
   --color-glow: #7fd4ff;
+  --color-glow-strong: #a8e3ff;
+  --color-glow-deep: #2563eb;
+  --color-surface: #070d24;
+  --color-raised: #0d1530;
+  --color-ink-muted: #a6b0c8;
+  --color-ink-subtle: #7d88a6;
+  --color-line: #1c2647;
+  --color-line-strong: #2c3a66;
+
+  /* Status and priority (used from M5) */
+  --color-status-todo: #a6b0c8;
+  --color-status-progress: #7fd4ff;
+  --color-status-done: #6ee7b7;
+  --color-priority-high: #ff8a9b;
+  --color-priority-medium: #ffc978;
+  --color-priority-low: #a6b0c8;
+
+  /* Typography */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --text-display: clamp(2.5rem, 1.5rem + 4.5vw, 4.75rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.03em;
+
+  --text-h2: clamp(2rem, 1.5rem + 2vw, 3rem);
+  --text-h2--line-height: 1.15;
+  --text-h2--letter-spacing: -0.02em;
+
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.35;
+  --text-h3--letter-spacing: -0.01em;
+
+  --text-lead: clamp(1.0625rem, 1rem + 0.4vw, 1.25rem);
+  --text-lead--line-height: 1.6;
+
+  --text-base: 1rem;
+  --text-base--line-height: 1.6;
+
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+
+  --text-eyebrow: 0.8125rem;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--letter-spacing: 0.12em;
+
+  /* Layout */
+  --container-content: 72rem;
+  --radius-card: 1.25rem;
+  --radius-control: 0.75rem;
+
+  /* Effects */
+  --shadow-glow: 0 0 2.5rem -0.5rem rgb(127 212 255 / 0.45);
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  /*
+    Durations aren't a Tailwind theme namespace, so they live here as plain CSS variables.
+    Use them as: duration-(--duration-fast)
+  */
+  :root {
+    --duration-fast: 150ms;
+    --duration-base: 300ms;
+    --duration-slow: 700ms;
+
+    /* Tells the browser to draw native UI (scrollbars, form controls) in dark mode. */
+    color-scheme: dark;
+  }
+
+  html {
+    background-color: var(--color-night);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: rgb(127 212 255 / 0.3);
+    color: var(--color-ink);
+  }
+
+  /* One focus style for every interactive element. Only shows for keyboard focus. */
+  :focus-visible {
+    outline: 2px solid var(--color-glow);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Reduced motion: remove movement everywhere, including from future components. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }

@@ -8,8 +8,8 @@ function App() {
   return (
     <main className="grid min-h-svh place-items-center bg-night px-4 text-center text-ink">
       <div className="space-y-6">
-        <h1 className="text-4xl font-medium tracking-tight">AI Task Manager</h1>
-        <p className="text-ink/70">React + TypeScript + Tailwind are working.</p>
+        <h1 className="font-display text-display font-semibold">AI Task Manager</h1>
+        <p className="text-lead text-ink-muted">React + TypeScript + Tailwind are working.</p>
         <button
           type="button"
           onClick={() => setCount((c) => c + 1)}
