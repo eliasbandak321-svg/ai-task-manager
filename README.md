@@ -2,7 +2,7 @@
 
 A modern, responsive task manager with a focus on clean UI/UX, built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. Currently in Milestone 1 of 6 (setup). Nothing is runnable yet.
+> **Status:** 🚧 In development. Milestone 1 of 6 (setup) is complete. The app runs, but it only shows a placeholder page so far.
 
 ## Features
 
@@ -27,11 +27,12 @@ _None yet. Development starts after the design phase._
 | Vite | Fast dev server and build with minimal config |
 | Tailwind CSS | Design tokens and consistent styling in one place |
 | Vitest + React Testing Library | Tests for logic and user interactions |
+| oxlint | Fast linting that catches common bugs and React hook mistakes |
 | Vercel | Simple deployment from GitHub |
 
 ## Roadmap
 
-- [ ] M1: Setup & foundations
+- [x] M1: Setup & foundations
 - [ ] M2: Design phase (references, wireframes, design system)
 - [ ] M3: Task logic (test-first)
 - [ ] M4: Dashboard UI
@@ -40,7 +41,26 @@ _None yet. Development starts after the design phase._
 
 ## Getting Started
 
-Setup instructions will be added once the project is scaffolded.
+**Prerequisites:** Node.js 26 (see `.nvmrc`) and npm.
+
+> **Windows users:** run the project inside [WSL](https://learn.microsoft.com/windows/wsl/install). Windows Smart App Control can block Vite's native bundler.
+
+```bash
+git clone https://github.com/eliasbandak321-svg/ai-task-manager.git
+cd ai-task-manager
+npm install
+npm run dev        # http://localhost:5173
+```
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the development server |
+| `npm run build` | Typecheck and build for production |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | Lint the code with oxlint |
+| `npm run typecheck` | Check types without building |
+| `npm test` | Run tests in watch mode |
+| `npm run test:run` | Run all tests once |
 
 ## What I'm Learning
 
