@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, and (soon) use AI to turn a complex goal into a concrete plan. Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M3 (setup, design, landing page) are complete. Next up: domain logic (M4). The landing page design is temporary and will be revisited once the app works.
+> **Status:** 🚧 In development. M1–M4 (setup, design, landing page, domain logic) are complete. Next up: the functional dashboard (M5). The landing page design is temporary and will be revisited once the app works.
 
 ## Features
 
@@ -12,6 +12,7 @@ A full-stack productivity app for students, developers and professionals: organi
 - **Subtle motion**: staggered hero entrance, scroll reveals and card hover effects, all CSS-only and disabled under `prefers-reduced-motion`
 - **Accessibility**: skip link, landmarks, full keyboard support, visible focus and WCAG AA contrast (Lighthouse Accessibility 100)
 - **CI**: lint, typecheck, tests and build run on every pull request (GitHub Actions)
+- **Domain logic** (no UI yet): Zod schemas and pure, fully tested functions for projects, tasks, subtasks, deadlines, statistics, search, filtering and sorting
 
 ### Planned (MVP)
 - Accounts with email and password, with each user's data isolated and secure
@@ -52,7 +53,7 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [x] M1: Setup & foundations
 - [x] M2: Design phase
 - [x] M3: Design system & landing page, CI
-- [ ] M4: Domain model & logic (test-first)
+- [x] M4: Domain model & logic (test-first)
 - [ ] M5: Functional dashboard (local data, async repository)
 - [ ] M6: Backend & database (Hono, Neon, Drizzle)
 - [ ] M7: Authentication & security (Better Auth, user isolation)
@@ -85,6 +86,7 @@ npm run dev        # http://localhost:5173
 | `npm run typecheck` | Check types without building |
 | `npm test` | Run tests in watch mode |
 | `npm run test:run` | Run all tests once |
+| `npm run test:coverage` | Run all tests with a coverage report (`coverage/index.html`) |
 
 ## What I'm Learning
 

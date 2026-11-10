@@ -23,7 +23,7 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - **Deployment:** Vercel, **only in M11**. Develop and test on localhost until then, keeping the code deployment-compatible (docs/architecture.md §9).
 
 ## Architecture Rules
-- Business logic lives in pure, tested functions in `src/domain/`, with no React and no I/O.
+- Business logic lives in pure, tested functions in `src/domain/`, with no React and no I/O (enforced by `src/domain/architecture.test.ts`). Ids and the clock are passed in via `CreateContext`.
 - UI code accesses data only through the async repository interface (`src/data/`), via TanStack Query hooks. Never call `fetch` or storage directly from components.
 - Validate all external input (forms, requests, AI output) with Zod at the boundary.
 - Ask before major architectural changes: new frameworks or services, data model changes beyond the approved model, or a change to the repository pattern.
@@ -64,5 +64,6 @@ Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Contro
 - `npm run typecheck`: typecheck with `tsc -b`
 - `npm test`: run Vitest in watch mode
 - `npm run test:run`: run all tests once
+- `npm run test:coverage`: tests with a coverage report (`coverage/index.html`)
 
 Run `lint`, `typecheck`, `test:run`, and `build` before every commit. CI runs the same checks on every pull request.

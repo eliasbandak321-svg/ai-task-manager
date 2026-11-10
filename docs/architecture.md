@@ -39,7 +39,7 @@ Exact versions are checked for compatibility when each milestone starts.
 
 ```
 src/
-  domain/        Pure business logic and Zod schemas (no React, no I/O). Shared with the API.
+  domain/        Pure business logic and Zod schemas (no React, no I/O). Shared with the API. Built in M4.
   data/          Repository interface plus adapters: local (M5) and HTTP (M6+)
   components/    React components (one per file)
   hooks/         React hooks, including TanStack Query hooks over the repository
@@ -65,7 +65,26 @@ docs/            design.md, architecture.md
 - **Every owned row stores `userId`**, even where it could be derived through a join. This gives one simple, auditable security rule: every query filters by the current user's ID.
 - A task's project must belong to the same user, and a subtask's task must too. This is enforced in the API and covered by tests.
 - **`dueDate` is a date without a time** (`YYYY-MM-DD`). Deadlines are calendar days, and storing a timestamp would shift dates for users in other time zones.
-- What happens to a project's tasks when the project is deleted (delete them, or move them to the Inbox) is decided in M4, with the domain rules.
+- **Deleting a project deletes its tasks and their subtasks.** The UI shows the counts from `planProjectDeletion` and asks for confirmation. Deleting a task deletes its subtasks.
+
+### Domain rules (implemented in M4, `src/domain/`)
+
+| Area | Rule |
+|---|---|
+| Projects | Names are unique per user, compared case-insensitively after trimming, with locale-independent lowercasing so browser and server always agree. "Inbox" is reserved. The Inbox can't be renamed or deleted. |
+| Tasks | Any status can change to any other. `completedAt` is set when a task becomes Done, cleared when it leaves Done, and kept while it stays Done; users can never set it. Completing every subtask does **not** complete the task. Moving a task is only allowed to a project of the same user. |
+| Subtasks | Max 50 per task. New subtasks go last. `position` only defines the order: deletes leave gaps, reorders renumber 0…n-1. |
+| Deadlines | Relative to the user's local "today" (`toIsoDate(now, timeZone)`). States: overdue, due today, due soon (1–3 days), upcoming, none. Done tasks are never overdue. |
+| Statistics | Counts by status, open tasks by priority, overdue / due today / due soon, and completion % rounded *down* (100% only when everything is done). |
+| Search, filter, sort | One validated `TaskQuery` object. Search is case- and accent-insensitive, and every word must match the title or description. Filters combine with AND. Sorting by deadline puts undated tasks last in both directions. Ties are broken by creation time, then id, so the order is always deterministic. |
+| Limits | Project name 80, task title 200, description 5000, subtask title 200, search 200 characters. Shared by browser and API through the Zod schemas. |
+
+**Design choices that keep the domain testable:**
+- Functions are **pure**. Ids and the current time are passed in through a `CreateContext`, never generated inside the function; an architecture test (`src/domain/architecture.test.ts`) fails if a domain file imports anything but Zod, or uses I/O, randomness or the clock.
+- Updates return the **same object** when nothing changes, so callers can skip saving.
+- Rule violations throw a `DomainError` with a stable `code` (e.g. `NOT_FOUND`, `INBOX_PROTECTED`), which the API maps to HTTP statuses and the UI to messages.
+- Functions that combine data re-check ownership (`userId`) as **defence in depth**, even though the API will already scope every query.
+- Input schemas are **strict**: unknown keys such as `userId` or `completedAt` are rejected (mass-assignment protection).
 
 ## 5. Frontend data flow
 
@@ -151,5 +170,7 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-10 | Every task belongs to a project; a default Inbox per user | One invariant, with no "loose task" special cases |
 | 2026-11-10 | Subtasks are a one-level checklist | Covers the need without recursive-task complexity |
 | 2026-11-10 | Email and password auth; password reset in M8 | Works for every user type. Locally, reset emails are logged to the console; the email provider comes in M11. |
+| 2026-11-10 | Deleting a project deletes its tasks and subtasks, after confirmation | Predictable and simple; the Inbox can't be deleted, so there's always a home for new tasks |
+| 2026-11-10 | Timestamps are ISO 8601 UTC strings, not `Date` objects | Identical in memory, in JSON and in the API; no serialisation surprises |
 | 2026-11-10 | Public deployment postponed to M11 | Build a complete, tested app first. Localhost and CI until then, with the deployment-compatibility rules in §9. |
 | 2026-11-10 | No multi-agent AI architecture | Task Breakdown is a single structured request |
