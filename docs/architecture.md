@@ -6,11 +6,11 @@ How AI Task Manager is built and why. This file is the source of truth for techn
 
 ## 1. Overview
 
-A single repository and a single Vercel project. The browser app and the API are served from the same domain.
+A single repository. The browser app and the API are served from the same origin: through a Vite dev-server proxy on localhost during development, and from one Vercel project after the public release (M11).
 
 ```mermaid
 flowchart LR
-  B[Browser<br/>React SPA] -- "/api/* (cookies)" --> A[Hono API<br/>Vercel Functions]
+  B[Browser<br/>React SPA] -- "/api/* (cookies)" --> A[Hono API<br/>Node locally · Vercel Functions in prod]
   A -- SQL via Drizzle --> D[(Neon<br/>PostgreSQL)]
   A -- "server-side only" --> C[Claude API]
 ```
@@ -25,8 +25,8 @@ flowchart LR
 | React Router *(M5)* | Client-side pages (`/`, `/app/...`) | Standard routing for React SPAs. |
 | TanStack Query *(M5)* | Server state: fetching, caching, loading and error states, refetching after changes | Avoids hand-written `useEffect` + `useState` fetching code, which is a common source of bugs (race conditions, stale data). |
 | Zod *(M4)* | Validates data at every boundary (form input, API requests, AI output) | One schema gives both a runtime check and a TypeScript type, and the same schema is shared by the frontend and the API. |
-| Hono *(M6)* | HTTP API framework | Small, fast and TypeScript-first. It runs on Vercel Functions without adapters, and the API is plain code that is easy to test. |
-| Neon PostgreSQL *(M6)* | Database | Real relational database (foreign keys, transactions) with a free tier and a Vercel integration. Serverless-friendly connections. |
+| Hono *(M6)* | HTTP API framework | Small, fast and TypeScript-first. The same app runs on Node locally and on Vercel Functions in production, and the API is plain code that is easy to test. |
+| PostgreSQL *(M6)*, Neon in production *(M11)* | Database | Real relational database (foreign keys, transactions). Neon offers a free tier and serverless-friendly connections. The local development database (local Postgres or a free Neon development branch) is decided at the start of M6. |
 | Drizzle ORM *(M6)* | Typed database queries and migrations | Close to SQL, so you learn SQL rather than hide it. Queries are type-checked against the schema, and schema changes are versioned migration files. |
 | Better Auth *(M7)* | Accounts, sessions, password hashing, password reset | A library running inside our own API, not a hosted service: data stays in our database, and we can see how auth works, without writing security-critical crypto ourselves. |
 | PGlite *(M6)* | In-process PostgreSQL for tests | Integration tests run against real Postgres semantics without Docker, which keeps WSL setup simple. |
@@ -46,7 +46,8 @@ src/
   pages/         Route-level components (M5)
 server/          Hono app: routes, auth, database access (M6+)
   db/            Drizzle schema and queries
-api/             Vercel Functions entry point that mounts the Hono app
+server/dev.ts    Local Node entry point (M6)
+api/             Vercel Functions entry point that mounts the same Hono app (M11)
 drizzle/         Generated SQL migrations (committed)
 docs/            design.md, architecture.md
 ```
@@ -88,9 +89,9 @@ flowchart LR
 | **Input validation** | Every request body and query parameter is parsed with Zod; anything else is rejected with `400`. |
 | **Rate limiting** | On the auth endpoints (brute-force protection) and the AI endpoint (cost control, as a daily quota per user). |
 | **Secrets** | Only in environment variables, never committed. Only `VITE_`-prefixed variables reach the browser, so secrets must never use that prefix. |
-| **Passwords** | Hashed by Better Auth. Password reset is required before the public release (M8). |
+| **Passwords** | Hashed by Better Auth. Password reset is built in M8. Locally, reset emails are logged to the console; a real email provider is connected in M11 (with approval). |
 | **AI output** | Treated as untrusted data. It is validated, shown to the user as a draft, and saved only after explicit approval. |
-| **Release gate** | The landing page may be public early. The app is not publicly released until the M8 security checks pass. |
+| **Release gate** | Nothing is deployed publicly before M11. The release requires the M7–M8 auth, isolation and security checks to pass. |
 
 ## 7. AI Task Breakdown flow *(M9)*
 
@@ -118,11 +119,26 @@ CI (GitHub Actions) runs lint, typecheck, tests and the build on every pull requ
 
 | Environment | Source | Notes |
 |---|---|---|
-| Local | `npm run dev` in WSL | Uses a Neon development branch from M6 |
-| Preview | Every pull request (Vercel) | For reviewing changes before merging |
-| Production | `main` (Vercel) | Landing page from M3; the app becomes publicly reachable only after M8 |
+| Local (M3–M10) | `npm run dev` in WSL, on localhost | All development and testing |
+| CI (throughout) | GitHub Actions on every PR and every push to `main` | Lint, typecheck, tests, production build |
+| Production (M11) | Vercel, deployed from `main` | Public release after the final redesign and testing |
 
 Only free tiers are used. Enabling any paid service requires explicit approval first.
+
+### Deployment compatibility (applies from M4 onward)
+
+Deployment is postponed, so we design for it now to avoid surprises in M11:
+
+| Rule | Why |
+|---|---|
+| **Keep the same origin locally.** The Vite dev server proxies `/api` to the local Hono server. | Production serves the app and the API from one domain. Developing the same way means cookies and URLs behave identically. |
+| **Keep the platform entry points thin.** `server/dev.ts` (Node) and `api/` (Vercel) only mount the shared Hono app. | The API code doesn't know where it runs, so switching to Vercel in M11 is a small file, not a refactor. |
+| **Write stateless server code.** No in-memory sessions, rate-limit counters or caches, and no writing to the filesystem. | Serverless functions run as many short-lived copies that share no memory. State lives in Postgres. |
+| **Configure through environment variables,** validated with Zod at startup; commit `.env.example`, never `.env`. | A missing or wrong variable fails loudly and early, instead of breaking at runtime in production. |
+| **Change the schema only through committed Drizzle migrations.** | The production database in M11 is created by running the same migrations. |
+| **Make cookie and security settings environment-aware** (e.g. `Secure` cookies in production, allowed on `http://localhost` in development). | Same code, correct behaviour in both places. |
+| **Run CI against the production build** (`npm run build` now; end-to-end tests against `vite preview` from M8). | Build-only problems surface on every PR, not on launch day. |
+| **Add SPA rewrites in M11** (`vercel.json`). | Client routes like `/app/projects/1` must serve `index.html`. |
 
 ## 10. Decision log
 
@@ -134,5 +150,6 @@ Only free tiers are used. Enabling any paid service requires explicit approval f
 | 2026-11-10 | Async repository interface before the backend exists | The dashboard can be built first without being rewritten for the API |
 | 2026-11-10 | Every task belongs to a project; a default Inbox per user | One invariant, with no "loose task" special cases |
 | 2026-11-10 | Subtasks are a one-level checklist | Covers the need without recursive-task complexity |
-| 2026-11-10 | Email and password auth; reset required before release | Works for every user type; reset needs an email service, added in M8 |
+| 2026-11-10 | Email and password auth; password reset in M8 | Works for every user type. Locally, reset emails are logged to the console; the email provider comes in M11. |
+| 2026-11-10 | Public deployment postponed to M11 | Build a complete, tested app first. Localhost and CI until then, with the deployment-compatibility rules in §9. |
 | 2026-11-10 | No multi-agent AI architecture | Task Breakdown is a single structured request |

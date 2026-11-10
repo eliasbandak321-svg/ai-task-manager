@@ -14,12 +14,13 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 
 - **Frontend:** React + TypeScript (strict mode), Vite SPA, Tailwind CSS v4, React Router and TanStack Query (M5)
 - **Validation:** Zod schemas, shared by the frontend and the API (M4)
-- **API:** Hono on Vercel Functions, same origin as the frontend (M6)
-- **Database:** Neon PostgreSQL with Drizzle ORM and committed migrations (M6)
-- **Auth:** Better Auth, email and password, cookie sessions; password reset before the public release (M7/M8)
+- **API:** Hono, same origin as the frontend (Vite proxy locally, Vercel Functions in production) (M6)
+- **Database:** PostgreSQL with Drizzle ORM and committed migrations (M6); Neon in production (M11)
+- **Auth:** Better Auth, email and password, cookie sessions (M7); password reset (M8)
 - **AI:** Claude API, server-side only, structured output validated with Zod (M9)
 - **Tests:** Vitest, React Testing Library, PGlite for API tests (M6), Playwright end-to-end (M8)
-- **Deployment and CI:** Vercel and GitHub Actions (CI runs lint, typecheck, test, build)
+- **CI:** GitHub Actions on every pull request (lint, typecheck, test, build)
+- **Deployment:** Vercel, **only in M11**. Develop and test on localhost until then, keeping the code deployment-compatible (docs/architecture.md §9).
 
 ## Architecture Rules
 - Business logic lives in pure, tested functions in `src/domain/`, with no React and no I/O.
@@ -34,7 +35,7 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - Another user's resource returns 404. Invalid input returns 400.
 - Secrets live only in environment variables. Never use the `VITE_` prefix for secrets, because those variables are bundled into the browser.
 - Treat AI output as untrusted: validate it, show it as a draft, and save only after the user approves.
-- Don't publicly release the app until the M8 security checks pass. The landing page may be public.
+- Nothing is deployed publicly before M11. Release requires the auth, isolation and security checks from M7–M8 to pass.
 
 ## Coding Conventions
 - Functional components and hooks only; one component per file, PascalCase file names
@@ -51,6 +52,7 @@ The developer is a student learning professional software engineering. Act as a 
 - Maintain meaningful automated tests throughout: test-first for domain logic, isolation tests for every API resource.
 - Never claim something works without verifying it (run tests, lint, or the app and show the output).
 - The landing page design is temporary; don't redesign it before M10, but keep it accessible and responsive.
+- Don't connect Vercel or deploy before M11.
 
 ## Commands
 Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Control blocks Vite's native bundler on native Windows.

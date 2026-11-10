@@ -20,7 +20,8 @@ A full-stack productivity app for students, developers and professionals: organi
 - Dashboard with progress tracking
 - Search, sorting and filtering
 - PostgreSQL persistence
-- Responsive, accessible interface, automated tests and production deployment
+- Responsive, accessible interface and automated tests
+- Public deployment once the app is complete, redesigned and fully tested
 
 ### Planned (AI)
 - **Task Breakdown**: describe a complex goal, get a structured task plan from the Claude API, review and edit it, and save only the tasks you approve
@@ -35,13 +36,14 @@ A full-stack productivity app for students, developers and professionals: organi
 | React Three Fiber + Three.js | Declarative 3D for the hero particle wave |
 | React Router + TanStack Query *(M5)* | Client routing; caching, loading and error states for server data |
 | Zod *(M4)* | One schema for both runtime validation and TypeScript types, shared by the frontend and the API |
-| Hono on Vercel Functions *(M6)* | Small TypeScript API served from the same domain as the app |
-| Neon PostgreSQL + Drizzle ORM *(M6)* | Relational data, type-safe queries, versioned migrations |
+| Hono *(M6)* | Small TypeScript API, served from the same domain as the app (Vercel Functions in production) |
+| PostgreSQL + Drizzle ORM *(M6)* (Neon in production) | Relational data, type-safe queries, versioned migrations |
 | Better Auth *(M7)* | Self-hosted email and password auth with secure cookie sessions |
 | Claude API *(M9)* | AI Task Breakdown, called only from the server |
 | Vitest, React Testing Library, PGlite, Playwright | Unit, component, API and end-to-end tests |
 | oxlint | Fast linting, including React hooks and accessibility rules |
-| Vercel + GitHub Actions | Preview deployments per pull request; CI on every change |
+| GitHub Actions | CI on every pull request and every push to `main` |
+| Vercel *(M11)* | Hosting for the public release |
 
 See [docs/architecture.md](docs/architecture.md) for the data model, security model and decision log, and [docs/design.md](docs/design.md) for the visual design.
 
@@ -54,9 +56,12 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [ ] M5: Functional dashboard (local data, async repository)
 - [ ] M6: Backend & database (Hono, Neon, Drizzle)
 - [ ] M7: Authentication & security (Better Auth, user isolation)
-- [ ] M8: Release v1.0 (end-to-end tests, password reset, production deploy)
+- [ ] M8: Hardening (password reset, end-to-end tests, security review)
 - [ ] M9: AI Task Breakdown
 - [ ] M10: Visual design revisit
+- [ ] M11: Final testing & public deployment (Vercel, production database, email provider)
+
+Development and testing happen on localhost until M11. GitHub pull requests and CI are used throughout, and the code stays deployment-compatible (see [docs/architecture.md](docs/architecture.md) §9).
 
 ## Getting Started
 

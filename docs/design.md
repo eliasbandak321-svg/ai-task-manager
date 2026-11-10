@@ -211,7 +211,7 @@ Icons come from `lucide-react`. It is tree-shaken, so only the icons we import a
 - **Progress:** statistics with a progress indicator, per project and overall.
 - **States:** empty, loading and error states for every data view, since data is loaded asynchronously.
 - **Layout:** "no sidebar, single column with a header" was approved for a single task list. Now that there are projects, the project navigation (header switcher, tabs or a sidebar) is **re-decided at the start of M5**.
-- **Auth screens:** sign up and log in (M7), and password reset (M8, required before the public release), all in the same visual language.
+- **Auth screens:** sign up and log in (M7), and password reset (M8), all in the same visual language.
 - **Entry point:** when the app works, add an "Open the app" or "Get started" CTA to the header and hero, introducing React Router at the same time. No placeholder page or route before then.
 - **Visual language:** reuses the same tokens, `surface` / `raised` cards, button styles, focus ring and motion tokens.
 - **Spec timing:** the detailed dashboard layout is specified at the start of M5.
