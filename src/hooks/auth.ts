@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SessionUser, SignInInput, SignUpInput } from '../data/authClient'
+import type { RequestPasswordResetInput, ResetPasswordInput, SessionUser, SignInInput, SignUpInput } from '../data/authClient'
 import { useAuthClient } from '../data/authClientContext'
 
 /*
@@ -28,10 +28,28 @@ export function useSignIn() {
   return useMutation({ mutationFn: (input: SignInInput) => client.signIn(input), onSuccess: startSession })
 }
 
+/** Creates the account; the session starts later, when the confirmation link is opened. */
 export function useSignUp() {
   const client = useAuthClient()
-  const startSession = useStartSession()
-  return useMutation({ mutationFn: (input: SignUpInput) => client.signUp(input), onSuccess: startSession })
+  return useMutation({ mutationFn: (input: SignUpInput) => client.signUp(input) })
+}
+
+export function useRequestPasswordReset() {
+  const client = useAuthClient()
+  return useMutation({ mutationFn: (input: RequestPasswordResetInput) => client.requestPasswordReset(input) })
+}
+
+/** A reset signs out every session, including this browser's: forget the cached data too. */
+export function useResetPassword() {
+  const client = useAuthClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ResetPasswordInput) => client.resetPassword(input),
+    onSuccess: () => {
+      queryClient.removeQueries()
+      queryClient.setQueryData(sessionQueryKey, null)
+    },
+  })
 }
 
 export function useSignOut() {
