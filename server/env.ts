@@ -57,6 +57,33 @@ const envSchema = z.object({
     .url({ protocol: /^https?$/, error: 'APP_ORIGIN must be a URL like http://localhost:5173' })
     .transform((url) => new URL(url).origin)
     .default('http://localhost:5173'),
+  /**
+   * How emails (verification, password reset) are delivered. Development only for now:
+   *   console  printed in the API terminal (default)
+   *   file     saved as JSON files in MAIL_DIR (used by the end-to-end tests)
+   * A real provider is added in M11; production refuses to start until then.
+   */
+  MAIL_TRANSPORT: z.enum(['console', 'file']).default('console'),
+  MAIL_DIR: z.string().min(1).default('.data/mail'),
+  MAIL_FROM: z.string().min(3).default('AI Task Manager <no-reply@localhost>'),
+  /**
+   * Where the client's IP address comes from (rate limiting, session records). Proxies append
+   * to X-Forwarded-For and its leftmost entries are set by the client, so only addresses
+   * added by proxies we trust count:
+   *   CLIENT_IP_HEADER  the header to read (default x-forwarded-for; on hosts that set a
+   *                     single-value header, such as x-real-ip, use that)
+   *   TRUSTED_PROXIES   comma-separated IPs or CIDR ranges of our own proxies, stripped from
+   *                     the right of the chain (development default: this computer)
+   */
+  CLIENT_IP_HEADER: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'CLIENT_IP_HEADER must be a lowercase header name')
+    .default('x-forwarded-for'),
+  TRUSTED_PROXIES: z
+    .string()
+    .optional()
+    .transform((value) => (value ?? '').split(',').map((entry) => entry.trim()).filter(Boolean))
+    .pipe(z.array(z.string().regex(/^[0-9a-f:.]+(\/\d{1,3})?$/i, 'TRUSTED_PROXIES must list IP addresses or CIDR ranges'))),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -88,10 +115,23 @@ function providerProblem(env: Env): string | null {
 }
 
 function securityProblem(env: Env): string | null {
-  if (env.NODE_ENV === 'production' && !env.APP_ORIGIN.startsWith('https://')) {
+  if (env.NODE_ENV !== 'production') return null
+  if (!env.APP_ORIGIN.startsWith('https://')) {
     return 'APP_ORIGIN must use https in production (session cookies are only sent over HTTPS).'
   }
-  return null
+  if (env.TRUSTED_PROXIES.length === 0 && env.CLIENT_IP_HEADER === 'x-forwarded-for') {
+    // Without this, a multi-hop X-Forwarded-For can't be trusted and Better Auth puts every
+    // client in one shared rate-limit bucket: a few failed sign-ins would lock everyone out.
+    return 'Configure the client IP in production: set TRUSTED_PROXIES, or CLIENT_IP_HEADER to a header your host sets itself (see docs/architecture.md, M11 checklist).'
+  }
+  // Development transports would print reset links to logs or disk.
+  return 'No email provider is configured for production yet (M11). MAIL_TRANSPORT=console/file is development only.'
+}
+
+/** Trusted proxies for client-IP resolution: in development, this computer (the Vite proxy). */
+export function trustedProxies(env: Pick<Env, 'TRUSTED_PROXIES' | 'NODE_ENV'>): string[] {
+  if (env.TRUSTED_PROXIES.length > 0 || env.NODE_ENV === 'production') return env.TRUSTED_PROXIES
+  return ['127.0.0.1', '::1']
 }
 
 export function loadEnv(source: Record<string, string | undefined>): Env {

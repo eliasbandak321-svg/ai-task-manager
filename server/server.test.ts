@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { loadEnv, trustedOrigins } from './env'
+import { MemoryMailer } from './mail'
 import { buildServer } from './server'
 import { setupTestDatabase } from './test/testDatabase'
 
@@ -17,14 +18,14 @@ const PASSWORD = 'correct horse battery staple'
 let counter = 0
 
 async function signUpFrom(origin: string, env = devEnv) {
-  const { app } = buildServer(env, database(), { rateLimit: false })
+  const { app } = buildServer(env, database(), { rateLimit: false, mailer: new MemoryMailer() })
   counter += 1
   const response = await app.request(`${env.APP_ORIGIN}/api/auth/sign-up/email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Origin: origin, 'Sec-Fetch-Site': 'same-origin' },
     body: JSON.stringify({ name: 'Origin test', email: `origin-${counter}-${Date.now()}@example.test`, password: PASSWORD }),
   })
-  return { status: response.status, json: (await response.json()) as { error?: { code: string; message: string } }, app, response }
+  return { status: response.status, json: (await response.json()) as { error?: { code: string; message: string } } }
 }
 
 describe('trustedOrigins', () => {
@@ -54,9 +55,11 @@ describe('sign-up from the address the browser actually uses (regression)', () =
   it.each(['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173'])(
     'signs up from %s in development',
     async (origin) => {
-      const { status, response } = await signUpFrom(origin)
+      // Accepted (not 403). Since M8 the account is created and a confirmation email is sent;
+      // the session starts when the link is opened.
+      const { status, json } = await signUpFrom(origin)
       expect(status).toBe(200)
-      expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith('better-auth.session_token='))).toBe(true)
+      expect(json.error).toBeUndefined()
     },
   )
 
@@ -76,13 +79,8 @@ describe('sign-up from the address the browser actually uses (regression)', () =
 
   it('keeps production strict: one origin, and a generic message', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const production = loadEnv({
-      DATABASE_PROVIDER: 'postgres',
-      DATABASE_URL: 'postgres://u:p@db.example:5432/app',
-      NODE_ENV: 'production',
-      BETTER_AUTH_SECRET: SECRET,
-      APP_ORIGIN: 'https://tasks.example.com',
-    })
+    // Built directly: loadEnv rightly refuses production until a real email provider exists (M11).
+    const production = { ...devEnv, NODE_ENV: 'production' as const, APP_ORIGIN: 'https://tasks.example.com', TRUSTED_PROXIES: ['10.0.0.1'] }
     const blocked = await signUpFrom('http://127.0.0.1:5173', production)
     expect(blocked.status).toBe(403)
     expect(blocked.json.error?.message).toBe('This request was blocked because it came from another website.')

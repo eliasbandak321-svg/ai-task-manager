@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { databaseConfig, describeDatabase, loadEnv } from './env'
+import { databaseConfig, describeDatabase, loadEnv, trustedProxies } from './env'
 
 const NEON_URL = 'postgresql://user:secret@ep-example-123.c-1.us-east-1.aws.neon.tech/neondb?sslmode=verify-full'
 const SECRET = 'test-secret-that-is-at-least-32-characters-long'
@@ -68,7 +68,27 @@ describe('loadEnv: authentication settings', () => {
 
   it('requires HTTPS in production, so session cookies can be Secure', () => {
     expect(() => loadEnv({ ...neon, NODE_ENV: 'production' })).toThrow(/APP_ORIGIN must use https in production/)
-    expect(() => loadEnv({ ...neon, NODE_ENV: 'production', APP_ORIGIN: 'https://tasks.example.com' })).not.toThrow()
+  })
+
+  it('refuses production until the M11 checklist is done: client IP and a real email provider', () => {
+    const prod = { ...neon, NODE_ENV: 'production', APP_ORIGIN: 'https://tasks.example.com' }
+    expect(() => loadEnv(prod)).toThrow(/Configure the client IP in production/)
+    expect(() => loadEnv({ ...prod, TRUSTED_PROXIES: '10.0.0.0/8' })).toThrow(/No email provider is configured for production/)
+    expect(() => loadEnv({ ...prod, CLIENT_IP_HEADER: 'x-real-ip' })).toThrow(/No email provider is configured for production/)
+  })
+
+  it('validates mail and client-IP settings', () => {
+    expect(loadEnv(neon)).toMatchObject({ MAIL_TRANSPORT: 'console', CLIENT_IP_HEADER: 'x-forwarded-for', TRUSTED_PROXIES: [] })
+    expect(loadEnv({ ...neon, TRUSTED_PROXIES: '10.0.0.1, 192.168.0.0/16' }).TRUSTED_PROXIES).toEqual(['10.0.0.1', '192.168.0.0/16'])
+    expect(() => loadEnv({ ...neon, TRUSTED_PROXIES: 'not-an-ip' })).toThrow(/TRUSTED_PROXIES/)
+    expect(() => loadEnv({ ...neon, CLIENT_IP_HEADER: 'X Real IP' })).toThrow(/CLIENT_IP_HEADER/)
+    expect(() => loadEnv({ ...neon, MAIL_TRANSPORT: 'sendgrid' })).toThrow(/MAIL_TRANSPORT/)
+  })
+
+  it('trusts this computer as the proxy in development, and nothing implicit in production', () => {
+    expect(trustedProxies({ TRUSTED_PROXIES: [], NODE_ENV: 'development' })).toEqual(['127.0.0.1', '::1'])
+    expect(trustedProxies({ TRUSTED_PROXIES: [], NODE_ENV: 'production' })).toEqual([])
+    expect(trustedProxies({ TRUSTED_PROXIES: ['10.0.0.1'], NODE_ENV: 'development' })).toEqual(['10.0.0.1'])
   })
 
   it('never includes the secret in configuration errors', () => {
