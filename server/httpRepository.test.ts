@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RepositoryError } from '../src/data/errors'
+import { AuthRequiredError, RepositoryError } from '../src/data/errors'
 import { HttpRepository } from '../src/data/httpRepository'
 import { describeRepositoryContract } from '../src/test/repositoryContract'
 import { createApp } from './app'
@@ -12,7 +12,7 @@ const database = setupTestDatabase()
  * database, end to end, without opening a network port.
  */
 function connectedRepository(userId: string) {
-  const app = createApp({ db: database(), resolveUserId: async () => userId })
+  const app = createApp({ db: database(), resolveUserId: async () => userId, trustedOrigins: [] })
   return new HttpRepository({ baseUrl: 'http://app.test/api', fetch: async (input, init) => app.request(input, init) })
 }
 
@@ -53,7 +53,11 @@ describe('HttpRepository failures', () => {
     const repo = new HttpRepository({
       fetch: async () => Response.json({ error: { code: 'UNAUTHENTICATED', message: 'x' } }, { status: 401 }),
     })
-    await expect(repo.listTasks()).rejects.toEqual(new RepositoryError('Please sign in to continue.'))
+    const error = await repo.listTasks().catch((caught: unknown) => caught)
+    // A RepositoryError subclass: the app reacts to it by showing the login page.
+    expect(error).toBeInstanceOf(AuthRequiredError)
+    expect(error).toBeInstanceOf(RepositoryError)
+    expect((error as Error).message).toBe('Please sign in to continue.')
   })
 
   it('uses the API’s message for other client errors', async () => {

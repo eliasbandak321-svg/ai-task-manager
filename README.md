@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, and (soon) use AI to turn a complex goal into a concrete plan. Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M6 are complete: the dashboard runs on a Hono API with a PostgreSQL database. Next up: accounts and security (M7). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
+> **Status:** 🚧 In development. M1–M7 are complete: user accounts with secure sessions, and a dashboard on a Hono API with a Neon PostgreSQL database. Next up: hardening (M8). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
 
 ## Features
 
@@ -13,11 +13,11 @@ A full-stack productivity app for students, developers and professionals: organi
 - **Accessibility**: skip link, landmarks, full keyboard support, visible focus and WCAG AA contrast (Lighthouse Accessibility 100)
 - **CI**: lint, typecheck, tests and build run on every pull request (GitHub Actions)
 - **Domain logic**: Zod schemas and pure, fully tested functions for projects, tasks, subtasks, deadlines, statistics, search, filtering and sorting
+- **Accounts**: sign up, sign in and sign out with email and password (Better Auth). Sessions are stored in the database, in HttpOnly SameSite cookies, and last 7 days. CSRF protection, brute-force rate limiting, and tests proving that users can never see or change each other's data.
 - **Dashboard** (`/app`): projects with a default Inbox; tasks with statuses, priorities and deadlines; subtask checklists; progress statistics; search, filters and sorting kept in the URL; accessible dialogs with confirmation before deleting. Data is stored in PostgreSQL through the API.
 - **API and database**: a Hono REST API with Neon PostgreSQL and Drizzle ORM (committed migrations, database constraints as a second line of defence), consistent JSON errors, and tests proving users can't see or change each other's data. Development uses a Neon development branch; automated tests run offline on PGlite (PostgreSQL in WebAssembly).
 
 ### Planned (MVP)
-- Accounts with email and password (the API is already built to scope every query to the signed-in user)
 - End-to-end tests and a security review
 - Public deployment once the app is complete, redesigned and fully tested
 
@@ -36,7 +36,7 @@ A full-stack productivity app for students, developers and professionals: organi
 | Zod | One schema for both runtime validation and TypeScript types, shared by the frontend and the API |
 | Hono | Small TypeScript API, served from the same domain as the app (Vercel Functions in production) |
 | Neon PostgreSQL + Drizzle ORM (PGlite for automated tests) | Relational data, type-safe queries, versioned migrations |
-| Better Auth *(M7)* | Self-hosted email and password auth with secure cookie sessions |
+| Better Auth | Self-hosted email and password auth with secure cookie sessions |
 | Claude API *(M9)* | AI Task Breakdown, called only from the server |
 | Vitest, React Testing Library, PGlite, Playwright | Unit, component, API and end-to-end tests |
 | oxlint | Fast linting, including React hooks and accessibility rules |
@@ -53,7 +53,7 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [x] M4: Domain model & logic (test-first)
 - [x] M5: Functional dashboard (local data, async repository)
 - [x] M6: Backend & database (Hono, PostgreSQL, Drizzle)
-- [ ] M7: Authentication & security (Better Auth, user isolation)
+- [x] M7: Authentication & security (Better Auth, user isolation)
 - [ ] M8: Hardening (password reset, end-to-end tests, security review)
 - [ ] M9: AI Task Breakdown
 - [ ] M10: Complete visual redesign (landing page and dashboard)
@@ -74,7 +74,7 @@ npm install
 npm run dev        # app + API: http://localhost:5173 (the dashboard is at /app)
 ```
 
-`npm run dev` applies any pending database migrations once (`npm run db:migrate`), then starts the website and the API together. The API itself never migrates: on startup it only checks that the schema is current.
+Open the app at **http://localhost:5173** (`127.0.0.1:5173` works too). `npm run dev` applies any pending database migrations once (`npm run db:migrate`), then starts the website and the API together. The API itself never migrates: on startup it only checks that the schema is current.
 
 **Database:** the project uses [Neon](https://neon.tech) PostgreSQL (free plan). Copy `.env.example` to `.env` and set `DATABASE_PROVIDER=neon`, `DATABASE_URL` (your Neon **development** branch's connection string) and `NEON_BRANCH_ID` (that branch's ID); the API refuses to run against any other branch, and stops with a clear message if the configuration is missing or incomplete. To work offline instead, run `npm run dev:offline`, which uses an embedded PostgreSQL (PGlite) in `.data/pglite`. Automated tests always use PGlite and never touch Neon.
 

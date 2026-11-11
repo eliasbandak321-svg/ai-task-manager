@@ -28,3 +28,6 @@ coverage/
 
 # Local PGlite database (development data)
 .data/
+
+# Local database backups (may contain personal data)
+.backups/

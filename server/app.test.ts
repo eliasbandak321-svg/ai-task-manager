@@ -10,7 +10,7 @@ const database = setupTestDatabase()
  * exists only in this test resolver. The real app never reads a user id from the request.
  */
 function testApp(resolveUserId: ResolveUserId = async (c) => c.req.header('x-test-user') ?? null) {
-  return createApp({ db: database(), resolveUserId })
+  return createApp({ db: database(), resolveUserId, trustedOrigins: ['http://localhost:5173'] })
 }
 
 type Json = Record<string, unknown>

@@ -10,3 +10,11 @@ export class RepositoryError extends Error {
     this.name = 'RepositoryError'
   }
 }
+
+/** The API says the session is missing or expired: the user needs to sign in (again). */
+export class AuthRequiredError extends RepositoryError {
+  constructor(message = 'Please sign in to continue.', options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'AuthRequiredError'
+  }
+}

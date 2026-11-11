@@ -16,7 +16,7 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - **Validation:** Zod schemas, shared by the frontend and the API (M4)
 - **API:** Hono, same origin as the frontend (Vite proxy locally, Vercel Functions in production) (M6)
 - **Database:** Neon PostgreSQL with Drizzle ORM and committed migrations (M6): the `development` branch locally, the `production` branch only from M11. PGlite for automated tests and explicitly selected offline development (`npm run dev:offline`)
-- **Auth:** Better Auth, email and password, cookie sessions (M7); password reset (M8)
+- **Auth:** Better Auth, email and password, database sessions in HttpOnly SameSite cookies, Origin-checked CSRF protection, database rate limiting (M7); password reset (M8)
 - **AI:** Claude API, server-side only, structured output validated with Zod (M9)
 - **Tests:** Vitest, React Testing Library, PGlite for API tests (M6), Playwright end-to-end (M8)
 - **CI:** GitHub Actions on every pull request (lint, typecheck, test, build)
@@ -27,6 +27,13 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - UI code accesses data only through the async repository interface (`src/data/`), via TanStack Query hooks. Never call `fetch` or storage directly from components.
 - Validate all external input (forms, requests, AI output) with Zod at the boundary.
 - Ask before major architectural changes: new frameworks or services, data model changes beyond the approved model, or a change to the repository pattern.
+
+## Data Safety Rule (permanent, highest priority)
+Never delete, reset, overwrite, or clean up existing user data, local databases (e.g. `.data/pglite`), Neon branches or databases, or project files without **first inspecting their contents and getting the developer's explicit approval** for that specific action. This includes "cleanup" of folders you believe you created yourself, `rm -rf`, `DROP`/`TRUNCATE`/`DELETE` statements, destructive migrations, branch resets, and `git reset --hard`/`git clean`.
+- Inspect first and report what exists (e.g. row counts, file listings), then ask.
+- After approval, **back up the data before** the destructive operation (database export or file copy into a git-ignored backup folder), and confirm the backup is readable.
+- Additive changes (new tables or columns, new rows created by tests that are then removed by the same test run) are allowed, but must never remove or reassign existing data.
+- Origin: on 2026-11-11 a local PGlite database with the developer's data was deleted without inspection. This must never happen again.
 
 ## Security Rules (essential)
 - The user ID comes only from the server session, never from the request body or URL.

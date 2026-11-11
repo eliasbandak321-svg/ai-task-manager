@@ -28,7 +28,7 @@ flowchart LR
 | Hono *(M6)* | HTTP API framework | Small, fast and TypeScript-first. The same app runs on Node locally and on Vercel Functions in production, and the API is plain code that is easy to test. |
 | **Neon** PostgreSQL *(M6)* | Database provider | Chosen provider (decided 2026-11-11). Real PostgreSQL on a free tier, with **branches**: a `development` branch for local development now, and a separate `production` branch reserved for the public release (M11). Branches are isolated copies, so development can never touch production data. |
 | Drizzle ORM *(M6)* | Typed database queries and migrations | Close to SQL, so you learn SQL rather than hide it. Queries are type-checked against the schema, and schema changes are versioned migration files. |
-| Better Auth *(M7)* | Accounts, sessions, password hashing, password reset | A library running inside our own API, not a hosted service: data stays in our database, and we can see how auth works, without writing security-critical crypto ourselves. |
+| Better Auth *(M7)* | Accounts, sessions, password hashing (password reset in M8) | Open source, running inside our own API, not a hosted service: account data stays in our database (Neon), we can see how auth works, and we don't write security-critical crypto ourselves. Telemetry is explicitly disabled. |
 | PGlite *(M6)* | In-process PostgreSQL for automated tests | Real PostgreSQL compiled to WebAssembly, running inside Node. Every automated test uses an in-memory instance, so tests run offline, in CI, and never touch Neon. Also available for offline development when chosen explicitly (`npm run dev:offline`), storing data in `.data/pglite`; never as a silent fallback. |
 | node-postgres (`pg`) *(M6)* | Driver for Neon (and any PostgreSQL server) | Used when `DATABASE_URL` is set. The full repository contract passes over this driver, both locally and against the Neon development branch (`npm run test:neon`). |
 | tsx, concurrently *(M6)* | Run the TypeScript API in development | `npm run dev` starts Vite and the API together; tsx runs and reloads the server without a build step. |
@@ -52,7 +52,7 @@ src/
   test/          Test setup, factories and the shared repository contract
 server/
   app.ts         The Hono app: middleware, routes, error handling (no knowledge of where it runs)
-  auth.ts        How a request's user is resolved (development user in M6; Better Auth in M7)
+  auth.ts        Better Auth configuration, and how a request's user is resolved (the session cookie)
   errors.ts      One JSON error format and the HTTP status for each error code
   env.ts         Environment variables, validated with Zod at startup
   dev.ts         Local Node entry point (npm run dev:api)
@@ -67,7 +67,11 @@ docs/            design.md, architecture.md
 
 | Table | Key fields | Notes |
 |---|---|---|
-| `user` | `id`, `name`, `email`, `emailVerified`, `image`, `createdAt`, `updatedAt` | Shaped like Better Auth's user table. In M6 it holds only the development user; Better Auth takes it over in M7 and adds `session`, `account` and `verification`. |
+| `user` | `id`, `name`, `email`, `emailVerified`, `image`, `createdAt`, `updatedAt` | One row per account (Better Auth). Deleting a user deletes all of their data (cascade). |
+| `session` | `id`, `userId`, `token`, `expiresAt`, `ipAddress`, `userAgent`, … | One row per signed-in browser. Signing out deletes it, which invalidates the cookie immediately. |
+| `account` | `id`, `userId`, `providerId`, `accountId`, `password`, … | How a user signs in. For email and password, `password` is a salted scrypt hash. |
+| `verification` | `id`, `identifier`, `value`, `expiresAt` | Short-lived tokens (password reset links in M8). |
+| `rate_limit` | `key`, `count`, `lastRequest` | Brute-force counters for the auth endpoints, in the database so they survive restarts and serverless instances. |
 | `project` | `id`, `userId`, `name`, `isInbox`, `createdAt`, `updatedAt` | Each user has exactly one Inbox, created at sign-up; it cannot be deleted. |
 | `task` | `id`, `userId`, `projectId`, `title`, `description?`, `status`, `priority`, `dueDate?`, `completedAt?`, `createdAt`, `updatedAt` | `status`: `todo` / `in_progress` / `done`. `priority`: `low` / `medium` / `high`. |
 | `subtask` | `id`, `userId`, `taskId`, `title`, `done`, `position` | One level only: a checklist. |
@@ -147,25 +151,37 @@ flowchart LR
 |---|---|
 | 400 | `VALIDATION_ERROR` (with `issues`), `INVALID_JSON`, `RESERVED_PROJECT_NAME`, `INVALID_SUBTASK_ORDER` |
 | 401 | `UNAUTHENTICATED` |
+| 403 | `FORBIDDEN_ORIGIN` — a state-changing request from another website (CSRF check) |
 | 404 | `NOT_FOUND` — missing, another user's, or not even a valid id |
 | 409 | `DUPLICATE_PROJECT_NAME`, `INBOX_PROTECTED`, `SUBTASK_LIMIT_REACHED` |
 | 413 · 415 | `PAYLOAD_TOO_LARGE` · `UNSUPPORTED_MEDIA_TYPE` (bodies must be JSON) |
 | 500 | `INTERNAL_ERROR` — a generic message; details are only logged on the server |
 
-**Ready for M7:** the app asks a `ResolveUserId` function who the user is (`server/auth.ts`). In M6 that's the development user, which refuses to run when `NODE_ENV=production`; M7 replaces it with the Better Auth session, without touching routes or repositories. Signing up a user creates their Inbox (`server/db/users.ts`), and Better Auth will call the same function.
+**Authentication (M7):** Better Auth handles `/api/auth/*`; every other route asks `ResolveUserId` who the user is, and in the app that's `sessionUser` (`server/auth.ts`), which reads the session cookie. Routes and repositories never see anything but the resulting user id.
+
+| Auth endpoint (Better Auth) | Purpose |
+|---|---|
+| `POST /api/auth/sign-up/email` | Create an account (name, email, password); signs in and creates the user's Inbox |
+| `POST /api/auth/sign-in/email` | Sign in; sets the session cookie |
+| `POST /api/auth/sign-out` | Sign out; deletes the session on the server |
+| `GET /api/auth/get-session` | The signed-in user, or `null` |
+
+In the browser, `src/data/authClient.ts` (`HttpAuthClient`) wraps these endpoints, `src/hooks/auth.ts` keeps the session in TanStack Query, and `RequireAuth` guards `/app`. Signing in, up or out replaces the whole query cache, so one user's data is never shown to the next person on the same browser. Any `401` from the API clears the session and returns the user to `/login?next=…` (only paths inside `/app` are accepted as `next`, to prevent open redirects).
 
 ## 6. Security model *(essential, not optional)*
 
 | Rule | How |
 |---|---|
-| **Authentication** | Better Auth sessions in `httpOnly`, `Secure`, `SameSite=Lax` cookies. JavaScript can't read them, which limits the damage of XSS. |
+| **Authentication** | Better Auth (M7): email and password, sessions stored in the database. The session cookie is `HttpOnly` (JavaScript, and so XSS, can't read it), `SameSite=Lax`, `Path=/`, lasts 7 days and is extended while in use, and is `Secure` with the `__Secure-` prefix in production (HTTPS required by configuration). Signing out deletes the session server-side, so a copied cookie stops working. Signed with `BETTER_AUTH_SECRET`. |
+| **CSRF** | Three layers: `SameSite=Lax` cookies; an Origin check on every POST, PUT, PATCH and DELETE (requests from untrusted origins get `403` and are logged; `Sec-Fetch-Site` covers requests without Origin), plus Better Auth's own trusted-origin check, both using the same list (`trustedOrigins` in `server/env.ts`): in production exactly `APP_ORIGIN`; in development with a local `APP_ORIGIN` also the other names of this computer (`localhost`, `127.0.0.1`, `[::1]`) on the same scheme and port, because tools open the dev server under either name; and JSON-only request bodies, which HTML forms on other sites can't send. |
+| **Account enumeration** | A wrong password and an unknown email get the same answer. (Sign-up does reveal that an email is taken; acceptable for now, reviewed in M8.) |
 | **User isolation** | The user ID comes **only from the session**, never from the request body or URL. Every query is scoped with `where userId = currentUser`. |
 | **Isolation tests** | Each resource has tests proving user A cannot read, update or delete user B's data. |
 | **Not found, not forbidden** | Another user's resource returns `404`, so the API doesn't reveal that it exists. |
 | **Input validation** | Every request body and query parameter is parsed with Zod; anything else is rejected with `400`. |
-| **Rate limiting** | On the auth endpoints (brute-force protection) and the AI endpoint (cost control, as a daily quota per user). |
+| **Rate limiting** | Sign-in and sign-up: 5 attempts per minute per IP address, other auth endpoints 100 per minute (Better Auth, stored in the `rate_limit` table). The client IP comes from `X-Forwarded-For`, set by the proxy in front of the API (Vite in development; the host in production, configured in M11). The AI endpoint gets a daily quota per user (M9). |
 | **Secrets** | Only in environment variables, never committed. Only `VITE_`-prefixed variables reach the browser, so secrets must never use that prefix. The Neon connection string lives in the git-ignored `.env` (file mode 600) and is never logged: the API prints only the verified branch ID. Connections use `sslmode=verify-full`. |
-| **Passwords** | Hashed by Better Auth. Password reset is built in M8. Locally, reset emails are logged to the console; a real email provider is connected in M11 (with approval). |
+| **Passwords** | 8–128 characters, hashed by Better Auth with salted scrypt; never stored or logged in plain text. Password reset is built in M8. Locally, reset emails are logged to the console; a real email provider is connected in M11 (with approval). |
 | **AI output** | Treated as untrusted data. It is validated, shown to the user as a draft, and saved only after explicit approval. |
 | **Release gate** | Nothing is deployed publicly before M11. The release requires the M7–M8 auth, isolation and security checks to pass. |
 
@@ -268,6 +284,10 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-11 | M6: composite foreign keys including `user_id` | Cross-user references are impossible at the database level, not just in code |
 | 2026-11-11 | M6: rule errors map to 404/409/400 with stable codes; invalid ids are 404 | The client can rebuild the same `DomainError`; ids that can't exist are simply "not found" |
 | 2026-11-11 | M6: the API only accepts JSON bodies | Plain HTML forms on other sites can't send JSON, a first CSRF safeguard before cookies arrive in M7 |
+| 2026-11-11 | M7: Better Auth with the Drizzle adapter, UUID ids, database sessions and database rate limiting; the development user is gone | Real accounts with no paid service, data in our own Neon database; the M6 `user` table was already in Better Auth's shape, so the migration only adds tables |
+| 2026-11-11 | M7: an Origin check on all state-changing requests, on top of SameSite cookies and JSON-only bodies | Defence in depth against CSRF now that the API is authenticated by cookies |
+| 2026-11-11 | M7 fix: in development, trust all loopback names of the dev server's origin; Vite's port is fixed (`strictPort`) | Sign-up failed with 403 when the app was opened at `127.0.0.1:5173` instead of `localhost:5173` (same computer, different origin). Production still trusts exactly one origin |
+| 2026-11-11 | M7: the UI cache is cleared on every sign-in, sign-up and sign-out | Prevents one user's cached data from flashing up for the next user of the same browser |
 | 2026-11-11 | M6: a `user` table shaped like Better Auth's, plus a development user | M7 plugs in real accounts without a data migration; the development user can't run in production |
 | 2026-11-10 | M10 is a complete visual redesign of the landing page and dashboard | Decided in the M5 review: the current look is a functional placeholder. Until M10, work goes into a complete, working application |
 | 2026-11-10 | M5: project navigation is a sidebar on large screens and a collapsible list on small ones | Projects need a permanent home on desktop; on phones the tasks stay first |
