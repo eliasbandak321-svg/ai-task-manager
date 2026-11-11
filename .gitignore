@@ -31,3 +31,7 @@ coverage/
 
 # Local database backups (may contain personal data)
 .backups/
+
+# Playwright end-to-end test output
+playwright-report/
+test-results/

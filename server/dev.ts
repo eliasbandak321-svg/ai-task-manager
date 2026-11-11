@@ -11,7 +11,9 @@ import { buildServer } from './server'
   In M11 a Vercel Function mounts the same createApp() instead (docs/architecture.md §9).
 */
 
-if (existsSync('.env')) process.loadEnvFile('.env')
+// ENV_FILE lets the end-to-end tests use their own settings and never read .env (Neon).
+const envFile = process.env.ENV_FILE ?? '.env'
+if (existsSync(envFile)) process.loadEnvFile(envFile)
 const env = loadEnv(process.env)
 
 // Connects (verifying the Neon branch) but never migrates: restarting the server can't change
