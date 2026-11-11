@@ -19,6 +19,7 @@ export type ApiErrorCode =
   | 'PAYLOAD_TOO_LARGE'
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN_ORIGIN'
+  | 'UNSAFE_REDIRECT'
   | 'INTERNAL_ERROR'
 
 export interface ApiErrorBody {

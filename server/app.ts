@@ -72,6 +72,43 @@ async function requestBody<T>(c: Context): Promise<T> {
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
+/** Parameters through which auth endpoints redirect the browser (or build email links). */
+const REDIRECT_PARAMS = ['redirectTo', 'callbackURL', 'newUserCallbackURL', 'errorCallbackURL']
+
+/**
+ * A redirect target is safe if it's a path on this site ("/app", not "//evil.example") or
+ * an absolute URL on a trusted origin.
+ */
+export function isSafeRedirect(target: string, trustedOrigins: readonly string[]): boolean {
+  if (target.startsWith('/')) return !target.startsWith('//') && !target.includes('\\')
+  try {
+    return trustedOrigins.includes(new URL(target).origin)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Open-redirect protection for /api/auth/*, on top of Better Auth's own check. A redirect to
+ * another site would leak tokens: a password-reset link built with an attacker's
+ * `redirectTo` hands the reset token to that site. Checks query and JSON body, for every
+ * method (Better Auth skips GET requests in its check).
+ */
+async function findUnsafeRedirect(c: Context, trustedOrigins: readonly string[]): Promise<string | null> {
+  const values: unknown[] = REDIRECT_PARAMS.map((name) => c.req.query(name))
+  if (c.req.method === 'POST' && /^application\/json\b/i.test(c.req.header('content-type') ?? '')) {
+    const body: unknown = await c.req.raw.clone().json().catch(() => null)
+    if (body && typeof body === 'object') {
+      for (const name of REDIRECT_PARAMS) values.push((body as Record<string, unknown>)[name])
+    }
+  }
+  for (const value of values) {
+    if (value === undefined || value === null || value === '') continue
+    if (typeof value !== 'string' || !isSafeRedirect(value, trustedOrigins)) return String(value)
+  }
+  return null
+}
+
 /**
  * CSRF protection for cookie-based sessions, in layers:
  * 1. SameSite=Lax session cookies: browsers don't attach them to cross-site POST/PATCH/DELETE.
@@ -120,7 +157,14 @@ export function createApp({ db, resolveUserId, trustedOrigins, explainBlockedOri
 
   // Public: sign-up, sign-in, sign-out and the current session, handled by Better Auth.
   if (authHandler) {
-    app.on(['GET', 'POST'], '/auth/*', (c) => authHandler(c.req.raw))
+    app.on(['GET', 'POST'], '/auth/*', async (c) => {
+      const unsafe = await findUnsafeRedirect(c, trustedOrigins)
+      if (unsafe !== null) {
+        console.warn(`Blocked ${c.req.method} ${c.req.path}: redirect to an untrusted address (${unsafe.slice(0, 100)})`)
+        throw new ApiError(400, 'UNSAFE_REDIRECT', 'This link points to another website and was blocked.')
+      }
+      return authHandler(c.req.raw)
+    })
   }
 
   // Everything below needs a user. The repository is created per request, bound to that user.
