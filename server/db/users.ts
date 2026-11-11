@@ -9,22 +9,34 @@ export interface NewUser {
   email: string
 }
 
+interface Clock {
+  now?: () => Date
+  newId?: () => string
+}
+
+type Executor = Pick<Database, 'insert'>
+
 /**
- * Creates a user with their Inbox, unless they already exist. This is the sign-up step:
- * in M6 it runs for the development user at startup, and in M7 Better Auth calls it after
- * a real sign-up. Safe to run twice (the one-Inbox-per-user index makes the insert a no-op).
+ * Creates the user's Inbox unless they already have one. Better Auth calls this right after
+ * sign-up; DbRepository also calls it if a user somehow has none (e.g. the sign-up hook
+ * failed), so every user always has an Inbox. Safe to run any number of times: the
+ * one-Inbox-per-user index turns a second insert into a no-op.
  */
-export async function ensureUserWithInbox(
-  db: Database,
-  user: NewUser,
-  { now = () => new Date(), newId = randomUUID }: { now?: () => Date; newId?: () => string } = {},
-): Promise<void> {
+export async function createInboxFor(db: Executor, userId: string, { now = () => new Date(), newId = randomUUID }: Clock = {}) {
+  const inbox = createInboxProject({ id: newId(), userId, now: now() })
+  await db
+    .insert(projects)
+    .values({ ...inbox, createdAt: new Date(inbox.createdAt), updatedAt: new Date(inbox.updatedAt) })
+    .onConflictDoNothing()
+}
+
+/**
+ * Creates a user row with their Inbox, unless they already exist. Used by tests, which need
+ * users without going through the sign-up flow. Real users are created by Better Auth.
+ */
+export async function ensureUserWithInbox(db: Database, user: NewUser, clock: Clock = {}): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.insert(users).values(user).onConflictDoNothing({ target: users.id })
-    const inbox = createInboxProject({ id: newId(), userId: user.id, now: now() })
-    await tx
-      .insert(projects)
-      .values({ ...inbox, createdAt: new Date(inbox.createdAt), updatedAt: new Date(inbox.updatedAt) })
-      .onConflictDoNothing()
+    await createInboxFor(tx, user.id, clock)
   })
 }

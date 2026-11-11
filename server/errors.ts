@@ -18,6 +18,7 @@ export type ApiErrorCode =
   | 'UNSUPPORTED_MEDIA_TYPE'
   | 'PAYLOAD_TOO_LARGE'
   | 'UNAUTHENTICATED'
+  | 'FORBIDDEN_ORIGIN'
   | 'INTERNAL_ERROR'
 
 export interface ApiErrorBody {

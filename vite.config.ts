@@ -8,8 +8,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   // The API runs as its own process (npm run dev:api). Proxying /api keeps the browser on one
   // origin, as in production, so cookies and URLs behave the same (docs/architecture.md §9).
-  server: { proxy: { '/api': 'http://127.0.0.1:8787' } },
-  preview: { proxy: { '/api': 'http://127.0.0.1:8787' } },
+  // xfwd adds X-Forwarded-For, so the API's rate limiting sees the browser's address.
+  server: { proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
+  preview: { proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
   test: {
     // Half the CPU cores: each worker runs its own jsdom or database, and with every core busy,
     // machines with little memory (e.g. a default WSL setup) start swapping and tests time out.

@@ -23,6 +23,13 @@ import { ApiError, errorBody, toErrorResponse } from './errors'
 export interface AppOptions {
   db: Database
   resolveUserId: ResolveUserId
+  /**
+   * Origins allowed to send requests that change data (the app's own origin). Requests from
+   * any other origin are refused before they reach a route: the CSRF check.
+   */
+  trustedOrigins: readonly string[]
+  /** Handles /api/auth/* (Better Auth): sign-up, sign-in, sign-out, session. */
+  authHandler?: (request: Request) => Promise<Response>
   /** Injected for tests; default to the real clock and random UUIDs. */
   now?: () => Date
   newId?: () => string
@@ -58,7 +65,25 @@ async function requestBody<T>(c: Context): Promise<T> {
   return (await readJson(c)) as T
 }
 
-export function createApp({ db, resolveUserId, now, newId }: AppOptions) {
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+/**
+ * CSRF protection for cookie-based sessions, in layers:
+ * 1. SameSite=Lax session cookies: browsers don't attach them to cross-site POST/PATCH/DELETE.
+ * 2. This check: a state-changing request whose Origin isn't ours is refused (browsers always
+ *    send Origin on such requests; Sec-Fetch-Site covers the rare case where it's missing).
+ * 3. JSON-only bodies: an HTML form on another site can't send application/json.
+ * Requests without Origin and Sec-Fetch-Site don't come from a browser (e.g. curl), so they
+ * carry no victim's cookies.
+ */
+function isCrossOrigin(c: Context, trustedOrigins: readonly string[]): boolean {
+  const origin = c.req.header('origin')
+  if (origin) return !trustedOrigins.includes(origin)
+  const site = c.req.header('sec-fetch-site')
+  return site !== undefined && site !== 'same-origin' && site !== 'none'
+}
+
+export function createApp({ db, resolveUserId, trustedOrigins, authHandler, now, newId }: AppOptions) {
   const app = new Hono<AppEnv>().basePath('/api')
 
   app.use(secureHeaders())
@@ -74,8 +99,20 @@ export function createApp({ db, resolveUserId, now, newId }: AppOptions) {
     }),
   )
 
+  app.use(async (c, next) => {
+    if (UNSAFE_METHODS.has(c.req.method) && isCrossOrigin(c, trustedOrigins)) {
+      throw new ApiError(403, 'FORBIDDEN_ORIGIN', 'This request was blocked because it came from another website.')
+    }
+    await next()
+  })
+
   // Public: lets developers (and later the host) check that the API is up.
   app.get('/health', (c) => c.json({ status: 'ok' }))
+
+  // Public: sign-up, sign-in, sign-out and the current session, handled by Better Auth.
+  if (authHandler) {
+    app.on(['GET', 'POST'], '/auth/*', (c) => authHandler(c.req.raw))
+  }
 
   // Everything below needs a user. The repository is created per request, bound to that user.
   app.use(async (c, next) => {

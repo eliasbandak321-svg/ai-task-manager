@@ -37,13 +37,14 @@ import {
 } from '../../src/domain'
 import type { Database } from './client'
 import { projects, subtasks, tasks } from './schema'
+import { createInboxFor } from './users'
 
 /*
   The server-side TaskRepository: the same interface and the same contract tests as the
   browser's LocalRepository, backed by PostgreSQL.
 
-  - Scoped to one user, fixed when it's created. The user id comes from the session (M7) or
-    the development user (M6), never from a request. Every query filters by it.
+  - Scoped to one user, fixed when it's created. The user id comes from the session cookie
+    (server/auth.ts), never from the request body or URL. Every query filters by it.
   - Every input is validated with the shared Zod schemas, and every rule comes from
     src/domain: this file only loads rows, calls the domain, and saves the result.
   - Each write runs in a transaction, so a rule check and the write that depends on it see
@@ -124,7 +125,13 @@ export class DbRepository implements TaskRepository {
   // ---------- Projects ----------
 
   async listProjects(): Promise<Project[]> {
-    const rows = await this.db.select().from(projects).where(eq(projects.userId, this.userId))
+    let rows = await this.db.select().from(projects).where(eq(projects.userId, this.userId))
+    if (!rows.some((row) => row.isInbox)) {
+      // Every user has an Inbox (created at sign-up). Self-heal if it's missing, like the
+      // browser adapter does, so the dashboard always has a home for new tasks.
+      await createInboxFor(this.db, this.userId, { now: this.now, newId: this.newId })
+      rows = await this.db.select().from(projects).where(eq(projects.userId, this.userId))
+    }
     return sortProjects(rows.map(toProject))
   }
 

@@ -42,8 +42,21 @@ const envSchema = z.object({
     .optional(),
   /** Where PGlite keeps its data when DATABASE_PROVIDER=pglite. */
   PGLITE_DIR: z.string().min(1).default('.data/pglite'),
-  /** The single local user until accounts exist (M7). */
-  DEV_USER_ID: z.uuid().default('00000000-0000-4000-8000-000000000001'),
+  /**
+   * Signs and encrypts session cookies. Secret: a long random value (`openssl rand -base64 32`),
+   * different for every environment. Changing it signs everyone out.
+   */
+  BETTER_AUTH_SECRET: z
+    .string({ error: 'BETTER_AUTH_SECRET is not set. Generate one with `openssl rand -base64 32` (see .env.example).' })
+    .min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long.'),
+  /**
+   * The address people open the app at (scheme, host and port). Auth cookies, redirects and
+   * the CSRF origin check are based on it. In development the Vite server proxies /api.
+   */
+  APP_ORIGIN: z
+    .url({ protocol: /^https?$/, error: 'APP_ORIGIN must be a URL like http://localhost:5173' })
+    .transform((url) => new URL(url).origin)
+    .default('http://localhost:5173'),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -74,12 +87,19 @@ function providerProblem(env: Env): string | null {
   }
 }
 
+function securityProblem(env: Env): string | null {
+  if (env.NODE_ENV === 'production' && !env.APP_ORIGIN.startsWith('https://')) {
+    return 'APP_ORIGIN must use https in production (session cookies are only sent over HTTPS).'
+  }
+  return null
+}
+
 export function loadEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema.safeParse(source)
   if (!result.success) {
     throw new Error(`Invalid environment configuration:\n${z.prettifyError(result.error)}`)
   }
-  const problem = providerProblem(result.data)
+  const problem = providerProblem(result.data) ?? securityProblem(result.data)
   if (problem) throw new Error(`Invalid environment configuration: ${problem}`)
   return result.data
 }

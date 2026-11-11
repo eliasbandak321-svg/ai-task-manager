@@ -8,9 +8,9 @@ describe('migration status (read-only check used by servers)', () => {
   it('reports every migration as pending on an empty database, and none after migrating', async () => {
     const database = await openDatabase({ kind: 'pglite' }) // opening alone never migrates
     try {
-      expect(await pendingMigrations(database.db)).toEqual(['0000_init'])
+      expect(await pendingMigrations(database.db)).toEqual(['0000_init', '0001_auth'])
       await expect(assertSchemaUpToDate(database.db)).rejects.toThrow(
-        'The database schema is out of date (pending migrations: 0000_init). Run `npm run db:migrate`',
+        'The database schema is out of date (pending migrations: 0000_init, 0001_auth). Run `npm run db:migrate`',
       )
 
       await database.migrate()
@@ -27,6 +27,8 @@ describe('assertMigrationAllowed', () => {
     DATABASE_PROVIDER: 'neon',
     DATABASE_URL: 'postgresql://u:p@ep-x-1.c-1.aws.neon.tech/neondb',
     NEON_BRANCH_ID: 'br-prod-1',
+    BETTER_AUTH_SECRET: 'test-secret-that-is-at-least-32-characters-long',
+    APP_ORIGIN: 'https://tasks.example.com',
   }
 
   it('allows development migrations', () => {
