@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
 import { App } from './App'
 
@@ -18,8 +18,14 @@ describe('App routes', () => {
   })
 
   it('lazy-loads the dashboard at /app', async () => {
+    // No API runs in this test; the dashboard shell still loads (and shows its error state).
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('offline'))
     renderAt('/app')
-    expect(await screen.findByRole('heading', { level: 1, name: 'All tasks' }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('navigation', { name: 'Projects' }, { timeout: 5000 })).toBeInTheDocument()
+    expect(
+      await screen.findByText("Couldn't reach the server. Check your connection and try again.", undefined, { timeout: 5000 }),
+    ).toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 
   it('shows a not-found page for unknown URLs, with ways back', () => {
