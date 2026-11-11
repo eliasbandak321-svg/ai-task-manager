@@ -285,6 +285,9 @@ describe('dashboard: projects', () => {
 
     expect(await pageHeading('Garden')).toBeInTheDocument()
     expect(location()).toMatch(/^\/app\/projects\//)
+    // After navigating, focus moves to the main region (AppShell). Wait for that before typing,
+    // or the focus change can land mid-word on a slow machine (seen once in CI).
+    await waitFor(() => expect(document.getElementById('main')).toHaveFocus())
     await user.type(screen.getByRole('textbox', { name: 'Add a task to Garden' }), 'Plant tomatoes{Enter}')
     await screen.findByRole('button', { name: 'Plant tomatoes' })
     await waitFor(() => expect(projectLink(/^Garden, 0% done$/)).toBeInTheDocument())
