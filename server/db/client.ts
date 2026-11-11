@@ -32,15 +32,50 @@ const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url
 
 export type DatabaseConfig =
   | { kind: 'pglite'; dataDir?: string } // no dataDir: in-memory (tests)
-  | { kind: 'postgres'; url: string }
+  | {
+      kind: 'postgres'
+      url: string
+      /** When set, refuse to touch any Neon branch but this one (checked before migrating). */
+      expectedNeonBranchId?: string
+    }
+
+/**
+ * Makes sure we're connected to the intended Neon branch, so a wrong connection string
+ * (say, production's) fails before any migration or write. Neon reports the branch of the
+ * current compute in the `neon.branch_id` setting.
+ */
+export async function assertNeonBranch(
+  query: (sql: string) => Promise<{ rows: { branch: string | null }[] }>,
+  expected: string,
+): Promise<void> {
+  const result = await query("select current_setting('neon.branch_id', true) as branch")
+  const actual = result.rows[0]?.branch
+  if (actual !== expected) {
+    throw new Error(
+      `Refusing to use this database: NEON_BRANCH_ID is ${expected}, but the connection points to ${actual ?? 'a database that is not a Neon branch'}.`,
+    )
+  }
+}
 
 /** Connects and applies any pending migrations, so the schema is always up to date. */
 export async function openDatabase(config: DatabaseConfig): Promise<DatabaseHandle> {
   if (config.kind === 'postgres') {
     const pool = new pg.Pool({ connectionString: config.url })
-    const db = drizzleNodePg(pool, { schema })
-    await migrateNodePg(db, { migrationsFolder: MIGRATIONS_FOLDER })
-    return { db, close: () => pool.end() }
+    // Idle connections can be dropped by the server (Neon suspends idle compute after a few
+    // minutes). Without this handler that error would crash the process; the pool simply
+    // opens a new connection for the next query.
+    pool.on('error', (error) => console.warn('Database connection closed by the server:', error.message))
+    try {
+      if (config.expectedNeonBranchId) {
+        await assertNeonBranch((sql) => pool.query<{ branch: string | null }>(sql), config.expectedNeonBranchId)
+      }
+      const db = drizzleNodePg(pool, { schema })
+      await migrateNodePg(db, { migrationsFolder: MIGRATIONS_FOLDER })
+      return { db, close: () => pool.end() }
+    } catch (error) {
+      await pool.end()
+      throw error
+    }
   }
 
   // PGlite doesn't create missing parent folders, e.g. on the first run after a fresh clone.

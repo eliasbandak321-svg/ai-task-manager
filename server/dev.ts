@@ -22,7 +22,12 @@ const app = createApp({ db, resolveUserId: developmentUser(env.DEV_USER_ID, env.
 
 // 127.0.0.1 only: the API isn't reachable from other machines on the network.
 const server = serve({ fetch: app.fetch, port: env.API_PORT, hostname: '127.0.0.1' }, ({ port }) => {
-  const database = env.DATABASE_URL ? 'PostgreSQL (DATABASE_URL)' : `PGlite (${env.PGLITE_DIR})`
+  // Never print DATABASE_URL: it contains the password.
+  const database = env.NEON_BRANCH_ID
+    ? `Neon branch ${env.NEON_BRANCH_ID} (verified)`
+    : env.DATABASE_URL
+      ? 'PostgreSQL (DATABASE_URL)'
+      : `PGlite (${env.PGLITE_DIR})`
   console.log(`API ready on http://127.0.0.1:${port}/api · database: ${database}`)
 })
 

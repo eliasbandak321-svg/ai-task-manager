@@ -12,13 +12,32 @@ describe('loadEnv', () => {
   it('uses PostgreSQL when DATABASE_URL is set', () => {
     const env = loadEnv({ DATABASE_URL: 'postgres://user:pass@localhost:5432/app', API_PORT: '9000' })
     expect(env.API_PORT).toBe(9000)
-    expect(databaseConfig(env)).toEqual({ kind: 'postgres', url: 'postgres://user:pass@localhost:5432/app' })
+    expect(databaseConfig(env)).toEqual({
+      kind: 'postgres',
+      url: 'postgres://user:pass@localhost:5432/app',
+      expectedNeonBranchId: undefined,
+    })
   })
 
   it('fails fast with a clear message on invalid values', () => {
     expect(() => loadEnv({ DATABASE_URL: 'mysql://nope' })).toThrow(/DATABASE_URL must start with postgres/)
     expect(() => loadEnv({ API_PORT: 'eighty' })).toThrow(/API_PORT/)
     expect(() => loadEnv({ DEV_USER_ID: 'admin' })).toThrow(/DEV_USER_ID/)
+    expect(() => loadEnv({ NEON_BRANCH_ID: 'production' })).toThrow(/NEON_BRANCH_ID/)
+  })
+
+  it('requires the branch check for Neon databases', () => {
+    const neon = 'postgresql://user:secret@ep-example-123.c-1.us-east-1.aws.neon.tech/neondb?sslmode=verify-full'
+    expect(() => loadEnv({ DATABASE_URL: neon })).toThrow('NEON_BRANCH_ID is required when DATABASE_URL points to Neon')
+    expect(databaseConfig(loadEnv({ DATABASE_URL: neon, NEON_BRANCH_ID: 'br-dev-1' }))).toMatchObject({
+      expectedNeonBranchId: 'br-dev-1',
+    })
+  })
+
+  it('never includes the connection string in configuration errors', () => {
+    expect(() => loadEnv({ DATABASE_URL: 'postgresql://user:secret@ep-x.aws.neon.tech/db' })).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining('secret') }),
+    )
   })
 
   it('requires a real database in production', () => {

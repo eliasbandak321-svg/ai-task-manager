@@ -15,7 +15,7 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - **Frontend:** React + TypeScript (strict mode), Vite SPA, Tailwind CSS v4, React Router and TanStack Query (M5)
 - **Validation:** Zod schemas, shared by the frontend and the API (M4)
 - **API:** Hono, same origin as the frontend (Vite proxy locally, Vercel Functions in production) (M6)
-- **Database:** PostgreSQL with Drizzle ORM and committed migrations (M6); PGlite locally by default, Neon in production (M11)
+- **Database:** Neon PostgreSQL with Drizzle ORM and committed migrations (M6): the `development` branch locally, the `production` branch only from M11. PGlite for automated tests and as an offline fallback
 - **Auth:** Better Auth, email and password, cookie sessions (M7); password reset (M8)
 - **AI:** Claude API, server-side only, structured output validated with Zod (M9)
 - **Tests:** Vitest, React Testing Library, PGlite for API tests (M6), Playwright end-to-end (M8)
@@ -69,6 +69,8 @@ Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Contro
 - `npm run db:generate`: create a migration in `drizzle/` after changing `server/db/schema.ts` (never edit the database by hand)
 - `npm run db:migrate`: apply migrations (the dev API also does this on startup)
 
-Local data lives in PGlite at `.data/pglite` (git-ignored). Set `DATABASE_URL` in `.env` to use a PostgreSQL server instead.
+- `npm run test:neon`: optional contract tests against the Neon development branch (cleans up its test users)
+
+Database: `.env` (git-ignored) holds `DATABASE_URL` for the Neon **development** branch and `NEON_BRANCH_ID`; the API refuses any other branch. Never print, log or commit the connection string, and never touch the Neon `production` branch before M11. Without `.env`, the API uses PGlite at `.data/pglite`. Automated tests always use PGlite.
 
 Run `lint`, `typecheck`, `test:run`, and `build` before every commit. CI runs the same checks on every pull request.

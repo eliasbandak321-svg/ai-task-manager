@@ -12,4 +12,4 @@ if (existsSync('.env')) process.loadEnvFile('.env')
 const env = loadEnv(process.env)
 const { close } = await openDatabase(databaseConfig(env)) // opening applies the migrations
 await close()
-console.log('Migrations applied.')
+console.log(env.NEON_BRANCH_ID ? `Migrations applied to Neon branch ${env.NEON_BRANCH_ID}.` : 'Migrations applied.')

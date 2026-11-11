@@ -16,6 +16,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:neon": "RUN_NEON_TESTS=1 vitest run --project server server/db/neon.test.ts",
     "preview": "vite preview",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx server/db/migrate.ts"

@@ -26,11 +26,11 @@ flowchart LR
 | TanStack Query *(M5)* | Server state: fetching, caching, loading and error states, refetching after changes | Avoids hand-written `useEffect` + `useState` fetching code, which is a common source of bugs (race conditions, stale data). |
 | Zod *(M4)* | Validates data at every boundary (form input, API requests, AI output) | One schema gives both a runtime check and a TypeScript type, and the same schema is shared by the frontend and the API. |
 | Hono *(M6)* | HTTP API framework | Small, fast and TypeScript-first. The same app runs on Node locally and on Vercel Functions in production, and the API is plain code that is easy to test. |
-| PostgreSQL *(M6)*, Neon in production *(M11)* | Database | Real relational database (foreign keys, transactions). Neon offers a free tier and serverless-friendly connections. Locally, PGlite by default; any PostgreSQL server through `DATABASE_URL` (see below). |
+| **Neon** PostgreSQL *(M6)* | Database provider | Chosen provider (decided 2026-11-11). Real PostgreSQL on a free tier, with **branches**: a `development` branch for local development now, and a separate `production` branch reserved for the public release (M11). Branches are isolated copies, so development can never touch production data. |
 | Drizzle ORM *(M6)* | Typed database queries and migrations | Close to SQL, so you learn SQL rather than hide it. Queries are type-checked against the schema, and schema changes are versioned migration files. |
 | Better Auth *(M7)* | Accounts, sessions, password hashing, password reset | A library running inside our own API, not a hosted service: data stays in our database, and we can see how auth works, without writing security-critical crypto ourselves. |
-| PGlite *(M6)* | In-process PostgreSQL for tests **and local development** | Real PostgreSQL compiled to WebAssembly, running inside Node: no installation, no Docker, no account. Development data lives in `.data/pglite`; tests use in-memory instances. Chosen in M6 because neither a local PostgreSQL install (needs admin rights) nor a Neon branch (needs an account) is required to work on the project. |
-| node-postgres (`pg`) *(M6)* | Driver for a real PostgreSQL server | Used when `DATABASE_URL` is set: a local server today, Neon in M11. The full repository contract is tested over this driver too. |
+| PGlite *(M6)* | In-process PostgreSQL for automated tests | Real PostgreSQL compiled to WebAssembly, running inside Node. Every automated test uses an in-memory instance, so tests run offline, in CI, and never touch Neon. Also an offline fallback for development: without `DATABASE_URL`, the API stores data in `.data/pglite`. |
+| node-postgres (`pg`) *(M6)* | Driver for Neon (and any PostgreSQL server) | Used when `DATABASE_URL` is set. The full repository contract passes over this driver, both locally and against the Neon development branch (`npm run test:neon`). |
 | tsx, concurrently *(M6)* | Run the TypeScript API in development | `npm run dev` starts Vite and the API together; tsx runs and reloads the server without a build step. |
 | Playwright *(M8)* | End-to-end tests in a real browser | Verifies complete user flows (sign up, then create a project and a task). |
 | Claude API *(M9)* | AI Task Breakdown | Called only from the server, so the API key never reaches the browser. Structured output is validated with Zod before anyone sees it. |
@@ -56,7 +56,7 @@ server/
   errors.ts      One JSON error format and the HTTP status for each error code
   env.ts         Environment variables, validated with Zod at startup
   dev.ts         Local Node entry point (npm run dev:api)
-  db/            Drizzle schema, connection (PGlite or node-postgres), DbRepository, sign-up helper
+  db/            Drizzle schema, connection (Neon via node-postgres, or PGlite), branch check, DbRepository, sign-up helper
   test/          Test database helpers
 api/             Vercel Functions entry point that mounts the same Hono app (M11)
 drizzle/         Generated SQL migrations (committed)
@@ -164,7 +164,7 @@ flowchart LR
 | **Not found, not forbidden** | Another user's resource returns `404`, so the API doesn't reveal that it exists. |
 | **Input validation** | Every request body and query parameter is parsed with Zod; anything else is rejected with `400`. |
 | **Rate limiting** | On the auth endpoints (brute-force protection) and the AI endpoint (cost control, as a daily quota per user). |
-| **Secrets** | Only in environment variables, never committed. Only `VITE_`-prefixed variables reach the browser, so secrets must never use that prefix. |
+| **Secrets** | Only in environment variables, never committed. Only `VITE_`-prefixed variables reach the browser, so secrets must never use that prefix. The Neon connection string lives in the git-ignored `.env` (file mode 600) and is never logged: the API prints only the verified branch ID. Connections use `sslmode=verify-full`. |
 | **Passwords** | Hashed by Better Auth. Password reset is built in M8. Locally, reset emails are logged to the console; a real email provider is connected in M11 (with approval). |
 | **AI output** | Treated as untrusted data. It is validated, shown to the user as a draft, and saved only after explicit approval. |
 | **Release gate** | Nothing is deployed publicly before M11. The release requires the M7–M8 auth, isolation and security checks to pass. |
@@ -195,11 +195,18 @@ CI (GitHub Actions) runs lint, typecheck, tests and the build on every pull requ
 
 | Environment | Source | Notes |
 |---|---|---|
-| Local (M3–M10) | `npm run dev` in WSL, on localhost: Vite on :5173 proxies `/api` to the API on 127.0.0.1:8787, which stores data in PGlite (`.data/pglite`) or `DATABASE_URL` | All development and testing |
+| Local (M3–M10) | `npm run dev` in WSL, on localhost: Vite on :5173 proxies `/api` to the API on 127.0.0.1:8787, which uses the **Neon `development` branch** (`DATABASE_URL` + `NEON_BRANCH_ID` in the git-ignored `.env`). Without `.env` it falls back to PGlite in `.data/pglite` | All development and testing |
 | CI (throughout) | GitHub Actions on every PR and every push to `main` | Lint, typecheck, tests, production build |
-| Production (M11) | Vercel, deployed from `main` | Public release after the final redesign and testing |
+| Production (M11) | Vercel, deployed from `main`, using the Neon **`production`** branch | Public release after the final redesign and testing. Nothing touches the production branch before then |
 
 Only free tiers are used. Enabling any paid service requires explicit approval first.
+
+### Database setup (Neon)
+
+1. Neon project on the Free plan with two branches: `development` (local work) and `production` (reserved for M11).
+2. Copy `.env.example` to `.env` and set `DATABASE_URL` to the **development** branch's direct connection string, with `sslmode=verify-full`, and `NEON_BRANCH_ID` to that branch's ID (Neon Console → Branches → development).
+3. `npm run db:migrate` applies the committed migrations after checking the branch; `npm run dev` does the same on startup.
+4. `npm run test:neon` (optional) runs the repository contract against the development branch and deletes its test users afterwards. All other tests use PGlite.
 
 ### Deployment compatibility (applies from M4 onward)
 
@@ -231,7 +238,8 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-10 | Timestamps are ISO 8601 UTC strings, not `Date` objects | Identical in memory, in JSON and in the API; no serialisation surprises |
 | 2026-11-10 | Public deployment postponed to M11 | Build a complete, tested app first. Localhost and CI until then, with the deployment-compatibility rules in §9. |
 | 2026-11-10 | No multi-agent AI architecture | Task Breakdown is a single structured request |
-| 2026-11-11 | M6: PGlite is the default local development database; `DATABASE_URL` switches to any PostgreSQL server | Works on any machine with no installation or account; same SQL and migrations as PostgreSQL. node-postgres is tested with the full contract, so Neon (M11) needs no code change |
+| 2026-11-11 | M6: Neon is the database provider: the `development` branch for local work, `production` reserved for M11; PGlite for automated tests | Real managed PostgreSQL during development, with production data isolated on its own branch. Tests stay fast, offline and free of side effects. Superseded the earlier "PGlite by default" choice, which remains as an offline fallback |
+| 2026-11-11 | M6: `NEON_BRANCH_ID` safety check | The API and migrations verify `neon.branch_id` before any query that changes data, so a wrong connection string (e.g. production's) fails immediately instead of migrating or writing |
 | 2026-11-11 | M6: one `DbRepository` implements the same `TaskRepository` interface on the server | The API reuses the domain rules and the contract tests; routes stay thin |
 | 2026-11-11 | M6: composite foreign keys including `user_id` | Cross-user references are impossible at the database level, not just in code |
 | 2026-11-11 | M6: rule errors map to 404/409/400 with stable codes; invalid ids are 404 | The client can rebuild the same `DomainError`; ids that can't exist are simply "not found" |

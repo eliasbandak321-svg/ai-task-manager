@@ -38,7 +38,9 @@ export default defineConfig({
           name: 'server',
           environment: 'node',
           include: ['server/**/*.test.ts'],
-          // Each test file starts its own in-memory PostgreSQL (PGlite), which takes a moment.
+          // Each test file starts its own in-memory PostgreSQL (PGlite), which takes a moment and
+          // a few hundred MB. Running these files one at a time keeps memory use predictable.
+          fileParallelism: false,
           testTimeout: 20_000,
           hookTimeout: 30_000,
         },

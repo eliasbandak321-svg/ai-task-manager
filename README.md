@@ -14,7 +14,7 @@ A full-stack productivity app for students, developers and professionals: organi
 - **CI**: lint, typecheck, tests and build run on every pull request (GitHub Actions)
 - **Domain logic**: Zod schemas and pure, fully tested functions for projects, tasks, subtasks, deadlines, statistics, search, filtering and sorting
 - **Dashboard** (`/app`): projects with a default Inbox; tasks with statuses, priorities and deadlines; subtask checklists; progress statistics; search, filters and sorting kept in the URL; accessible dialogs with confirmation before deleting. Data is stored in PostgreSQL through the API.
-- **API and database**: a Hono REST API with PostgreSQL and Drizzle ORM (committed migrations, database constraints as a second line of defence), consistent JSON errors, and tests proving users can't see or change each other's data. Locally it runs on PGlite (PostgreSQL in WebAssembly), so there's nothing to install.
+- **API and database**: a Hono REST API with Neon PostgreSQL and Drizzle ORM (committed migrations, database constraints as a second line of defence), consistent JSON errors, and tests proving users can't see or change each other's data. Development uses a Neon development branch; automated tests run offline on PGlite (PostgreSQL in WebAssembly).
 
 ### Planned (MVP)
 - Accounts with email and password (the API is already built to scope every query to the signed-in user)
@@ -35,7 +35,7 @@ A full-stack productivity app for students, developers and professionals: organi
 | React Router + TanStack Query | Client routing; caching, loading and error states for server data |
 | Zod | One schema for both runtime validation and TypeScript types, shared by the frontend and the API |
 | Hono | Small TypeScript API, served from the same domain as the app (Vercel Functions in production) |
-| PostgreSQL + Drizzle ORM (PGlite locally, Neon in production) | Relational data, type-safe queries, versioned migrations |
+| Neon PostgreSQL + Drizzle ORM (PGlite for automated tests) | Relational data, type-safe queries, versioned migrations |
 | Better Auth *(M7)* | Self-hosted email and password auth with secure cookie sessions |
 | Claude API *(M9)* | AI Task Breakdown, called only from the server |
 | Vitest, React Testing Library, PGlite, Playwright | Unit, component, API and end-to-end tests |
@@ -74,7 +74,9 @@ npm install
 npm run dev        # app + API: http://localhost:5173 (the dashboard is at /app)
 ```
 
-`npm run dev` starts the website and the API together. The API stores data in an embedded PostgreSQL (PGlite) in `.data/pglite` and applies migrations automatically; delete that folder to start fresh. To use your own PostgreSQL server instead, copy `.env.example` to `.env` and set `DATABASE_URL`.
+`npm run dev` starts the website and the API together, and applies database migrations automatically.
+
+**Database:** the project uses [Neon](https://neon.tech) PostgreSQL (free plan). Copy `.env.example` to `.env` and set `DATABASE_URL` to your Neon **development** branch's connection string and `NEON_BRANCH_ID` to that branch's ID; the API refuses to run against any other branch. Without a `.env`, the API falls back to an embedded PostgreSQL (PGlite) in `.data/pglite`, so you can also work offline. Automated tests always use PGlite and never touch Neon.
 
 | Command | What it does |
 |---|---|
@@ -89,6 +91,7 @@ npm run dev        # app + API: http://localhost:5173 (the dashboard is at /app)
 | `npm run test:coverage` | Run all tests with a coverage report (`coverage/index.html`) |
 | `npm run db:generate` | Create a migration after changing `server/db/schema.ts` |
 | `npm run db:migrate` | Apply pending migrations to the configured database |
+| `npm run test:neon` | Optional: run the repository tests against the Neon development branch (cleans up after itself) |
 
 ## What I'm Learning
 
