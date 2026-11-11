@@ -206,11 +206,12 @@ In the browser, `src/data/authClient.ts` (`HttpAuthClient`) wraps these endpoint
 
 ### M11 deployment checklist (security)
 
-Production **refuses to start** until the items marked ⛔ are done (`server/env.ts`).
+Production **refuses to start** until the items marked ⛔ are done (`server/env.ts`). Reviewed at the end of M8.
 
 | Item | What to set |
 |---|---|
-| ⛔ HTTPS origin | `APP_ORIGIN=https://…` (cookies become `Secure` with the `__Secure-` prefix) |
+| ⛔ Production mode | `NODE_ENV=production`. Every production safeguard (one trusted origin, `Secure` cookies, required email provider and client-IP settings, no PGlite, migrations need confirmation) keys off it |
+| ⛔ HTTPS origin | `APP_ORIGIN=https://…` on the public domain (cookies become `Secure` with the `__Secure-` prefix; links in confirmation and reset emails are built from it) |
 | ⛔ Email provider | A real `Mailer` (e.g. SMTP or an email API) and its secrets; `MAIL_TRANSPORT=console/file` is rejected |
 | ⛔ Client IP | On Vercel: `CLIENT_IP_HEADER=x-real-ip` (or `x-vercel-forwarded-for`), which Vercel sets itself; or `TRUSTED_PROXIES` for the proxies in front of the API. Verify with a test request that limits are per client |
 | ⛔ Database | `DATABASE_PROVIDER=neon`, the **production** branch's `DATABASE_URL` and `NEON_BRANCH_ID`; migrations run as a deliberate release step (`--confirm-production=<branch>`) |
@@ -218,6 +219,8 @@ Production **refuses to start** until the items marked ⛔ are done (`server/env
 | Email sender | `MAIL_FROM` on a domain with SPF/DKIM/DMARC configured |
 | Static site headers | CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy` for the SPA (the API already sends security headers) in `vercel.json` |
 | Rate limit table | Consider periodic cleanup of old `rate_limit` rows |
+| Keep checks on | Never set `disableOriginCheck` / `disableCSRFCheck`, or loosen the redirect check in `server/app.ts`; they're forced on deliberately (M8 audit, finding 1) |
+| Separate data | Never copy development data (Neon `development` branch, `.backups/`, PGlite) into production; production starts empty from the migrations |
 | Re-run | `npm run test:e2e` against a preview deployment, and the isolation tests |
 
 ## 7. AI Task Breakdown flow *(M9)*
