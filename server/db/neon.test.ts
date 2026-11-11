@@ -6,6 +6,7 @@ import { databaseConfig, loadEnv } from '../env'
 import { createTestUser } from '../test/testDatabase'
 import { openDatabase, type DatabaseHandle } from './client'
 import { DbRepository } from './dbRepository'
+import { assertSchemaUpToDate } from './migrations'
 import { users } from './schema'
 
 /*
@@ -28,10 +29,11 @@ describe.skipIf(!enabled)('Neon development branch', () => {
   beforeAll(async () => {
     if (existsSync('.env')) process.loadEnvFile('.env')
     const env = loadEnv(process.env)
-    if (!env.DATABASE_URL || !env.NEON_BRANCH_ID) {
-      throw new Error('test:neon needs DATABASE_URL and NEON_BRANCH_ID in .env')
+    if (env.DATABASE_PROVIDER !== 'neon') {
+      throw new Error('test:neon needs DATABASE_PROVIDER=neon in .env')
     }
-    handle = await openDatabase(databaseConfig(env)) // verifies the branch, applies migrations
+    handle = await openDatabase(databaseConfig(env)) // verifies the branch; never migrates
+    await assertSchemaUpToDate(handle.db)
   }, 60_000)
 
   afterAll(async () => {

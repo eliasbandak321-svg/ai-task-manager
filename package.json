@@ -7,7 +7,8 @@
     "node": "26.x"
   },
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names web,api --prefix-colors cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev": "npm run db:migrate && concurrently --kill-others-on-fail --names web,api --prefix-colors cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:offline": "DATABASE_PROVIDER=pglite npm run dev",
     "dev:web": "vite",
     "dev:api": "tsx watch --clear-screen=false server/dev.ts",
     "build": "tsc -b && vite build",

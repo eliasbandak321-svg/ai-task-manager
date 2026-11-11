@@ -29,7 +29,7 @@ flowchart LR
 | **Neon** PostgreSQL *(M6)* | Database provider | Chosen provider (decided 2026-11-11). Real PostgreSQL on a free tier, with **branches**: a `development` branch for local development now, and a separate `production` branch reserved for the public release (M11). Branches are isolated copies, so development can never touch production data. |
 | Drizzle ORM *(M6)* | Typed database queries and migrations | Close to SQL, so you learn SQL rather than hide it. Queries are type-checked against the schema, and schema changes are versioned migration files. |
 | Better Auth *(M7)* | Accounts, sessions, password hashing, password reset | A library running inside our own API, not a hosted service: data stays in our database, and we can see how auth works, without writing security-critical crypto ourselves. |
-| PGlite *(M6)* | In-process PostgreSQL for automated tests | Real PostgreSQL compiled to WebAssembly, running inside Node. Every automated test uses an in-memory instance, so tests run offline, in CI, and never touch Neon. Also an offline fallback for development: without `DATABASE_URL`, the API stores data in `.data/pglite`. |
+| PGlite *(M6)* | In-process PostgreSQL for automated tests | Real PostgreSQL compiled to WebAssembly, running inside Node. Every automated test uses an in-memory instance, so tests run offline, in CI, and never touch Neon. Also available for offline development when chosen explicitly (`npm run dev:offline`), storing data in `.data/pglite`; never as a silent fallback. |
 | node-postgres (`pg`) *(M6)* | Driver for Neon (and any PostgreSQL server) | Used when `DATABASE_URL` is set. The full repository contract passes over this driver, both locally and against the Neon development branch (`npm run test:neon`). |
 | tsx, concurrently *(M6)* | Run the TypeScript API in development | `npm run dev` starts Vite and the API together; tsx runs and reloads the server without a build step. |
 | Playwright *(M8)* | End-to-end tests in a real browser | Verifies complete user flows (sign up, then create a project and a task). |
@@ -195,7 +195,7 @@ CI (GitHub Actions) runs lint, typecheck, tests and the build on every pull requ
 
 | Environment | Source | Notes |
 |---|---|---|
-| Local (M3–M10) | `npm run dev` in WSL, on localhost: Vite on :5173 proxies `/api` to the API on 127.0.0.1:8787, which uses the **Neon `development` branch** (`DATABASE_URL` + `NEON_BRANCH_ID` in the git-ignored `.env`). Without `.env` it falls back to PGlite in `.data/pglite` | All development and testing |
+| Local (M3–M10) | `npm run dev` in WSL, on localhost: Vite on :5173 proxies `/api` to the API on 127.0.0.1:8787, which uses the **Neon `development` branch** (`DATABASE_PROVIDER=neon`, `DATABASE_URL` and `NEON_BRANCH_ID` in the git-ignored `.env`). Offline work uses PGlite only when chosen explicitly (`npm run dev:offline`) | All development and testing |
 | CI (throughout) | GitHub Actions on every PR and every push to `main` | Lint, typecheck, tests, production build |
 | Production (M11) | Vercel, deployed from `main`, using the Neon **`production`** branch | Public release after the final redesign and testing. Nothing touches the production branch before then |
 
@@ -204,9 +204,31 @@ Only free tiers are used. Enabling any paid service requires explicit approval f
 ### Database setup (Neon)
 
 1. Neon project on the Free plan with two branches: `development` (local work) and `production` (reserved for M11).
-2. Copy `.env.example` to `.env` and set `DATABASE_URL` to the **development** branch's direct connection string, with `sslmode=verify-full`, and `NEON_BRANCH_ID` to that branch's ID (Neon Console → Branches → development).
-3. `npm run db:migrate` applies the committed migrations after checking the branch; `npm run dev` does the same on startup.
+2. Copy `.env.example` to `.env` and set `DATABASE_PROVIDER=neon`, `DATABASE_URL` to the **development** branch's direct connection string (with `sslmode=verify-full`), and `NEON_BRANCH_ID` to that branch's ID (Neon Console → Branches → development).
+3. `npm run dev` runs `npm run db:migrate` once, then starts the web app and the API.
 4. `npm run test:neon` (optional) runs the repository contract against the development branch and deletes its test users afterwards. All other tests use PGlite.
+
+**The database is always chosen explicitly** (`DATABASE_PROVIDER`, no default, no fallback):
+
+| Provider | Needs | Used for |
+|---|---|---|
+| `neon` | `DATABASE_URL` on a `*.neon.tech` host and `NEON_BRANCH_ID` | The project's database (development branch now, production branch in M11) |
+| `postgres` | `DATABASE_URL` (not Neon) | Any other PostgreSQL server |
+| `pglite` | nothing (data in `PGLITE_DIR`) | Explicit offline development: `npm run dev:offline`. Refused in production |
+
+A missing `.env`, a missing provider, or an incomplete Neon configuration stops the API with a clear message; it never quietly switches to an empty local database. Configuration errors never include the connection string. Automated tests create their own in-memory PGlite databases and never read `.env`.
+
+### Migrations
+
+| Rule | Enforced by |
+|---|---|
+| **Servers never apply migrations.** At startup they only check (read-only) that the schema matches the committed migrations, and refuse to start otherwise. A restart — including a file-watch restart in development — can't change any schema. | `assertSchemaUpToDate` in `server/db/migrations.ts`, called by `server/dev.ts` (and by the M11 entry point) |
+| **Migrations are applied only by `npm run db:migrate`**, an explicit command that shows its target and lists what it applies. | `server/db/migrate.ts` |
+| **Neon migrations check the branch first**: a connection to any branch other than `NEON_BRANCH_ID` is refused before any statement runs. | `assertNeonBranch` in `server/db/client.ts` |
+| **Production needs explicit confirmation**: with `NODE_ENV=production`, `db:migrate` refuses unless run as `npm run db:migrate -- --confirm-production=<NEON_BRANCH_ID>`, naming the exact branch. This check happens before connecting. | `assertMigrationAllowed` in `server/db/migrationPolicy.ts` |
+| **Development convenience**: `npm run dev` runs `db:migrate` once per session (development configuration only), not on restarts. | `package.json` |
+
+In M11, migrating production becomes a deliberate release step, run before deploying the code that needs it; the deployed functions only verify the schema.
 
 ### Deployment compatibility (applies from M4 onward)
 
@@ -238,7 +260,9 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-10 | Timestamps are ISO 8601 UTC strings, not `Date` objects | Identical in memory, in JSON and in the API; no serialisation surprises |
 | 2026-11-10 | Public deployment postponed to M11 | Build a complete, tested app first. Localhost and CI until then, with the deployment-compatibility rules in §9. |
 | 2026-11-10 | No multi-agent AI architecture | Task Breakdown is a single structured request |
-| 2026-11-11 | M6: Neon is the database provider: the `development` branch for local work, `production` reserved for M11; PGlite for automated tests | Real managed PostgreSQL during development, with production data isolated on its own branch. Tests stay fast, offline and free of side effects. Superseded the earlier "PGlite by default" choice, which remains as an offline fallback |
+| 2026-11-11 | M6: Neon is the database provider: the `development` branch for local work, `production` reserved for M11; PGlite for automated tests | Real managed PostgreSQL during development, with production data isolated on its own branch. Tests stay fast, offline and free of side effects. Superseded the earlier "PGlite by default" choice; PGlite remains only for tests and explicit offline mode |
+| 2026-11-11 | M6: servers never migrate; `db:migrate` is the only path, and production needs `--confirm-production=<branch>` | A restart can never change a schema, and a production migration is always a deliberate, named action |
+| 2026-11-11 | M6: `DATABASE_PROVIDER` must be set explicitly (no fallback to PGlite) | A broken Neon configuration fails loudly instead of silently showing an empty local database |
 | 2026-11-11 | M6: `NEON_BRANCH_ID` safety check | The API and migrations verify `neon.branch_id` before any query that changes data, so a wrong connection string (e.g. production's) fails immediately instead of migrating or writing |
 | 2026-11-11 | M6: one `DbRepository` implements the same `TaskRepository` interface on the server | The API reuses the domain rules and the contract tests; routes stay thin |
 | 2026-11-11 | M6: composite foreign keys including `user_id` | Cross-user references are impossible at the database level, not just in code |

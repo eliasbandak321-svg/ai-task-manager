@@ -1,5 +1,4 @@
 import { mkdirSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
@@ -7,6 +6,7 @@ import { migrate as migrateNodePg } from 'drizzle-orm/node-postgres/migrator'
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite'
 import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator'
 import pg from 'pg'
+import { MIGRATIONS_FOLDER } from './migrations'
 import * as schema from './schema'
 
 /*
@@ -25,10 +25,10 @@ export type Database = PgDatabase<PgQueryResultHKT, typeof schema>
 
 export interface DatabaseHandle {
   db: Database
+  /** Applies pending migrations. Only `npm run db:migrate` and tests call this. */
+  migrate: () => Promise<void>
   close: () => Promise<void>
 }
-
-const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url))
 
 export type DatabaseConfig =
   | { kind: 'pglite'; dataDir?: string } // no dataDir: in-memory (tests)
@@ -57,8 +57,16 @@ export async function assertNeonBranch(
   }
 }
 
-/** Connects and applies any pending migrations, so the schema is always up to date. */
-export async function openDatabase(config: DatabaseConfig): Promise<DatabaseHandle> {
+export interface OpenOptions {
+  /**
+   * Apply pending migrations after connecting. Only the explicit migration command
+   * (npm run db:migrate) and test databases do this; servers never do (see migrations.ts).
+   */
+  migrate?: boolean
+}
+
+/** Connects (checking the Neon branch first, when configured). */
+export async function openDatabase(config: DatabaseConfig, { migrate = false }: OpenOptions = {}): Promise<DatabaseHandle> {
   if (config.kind === 'postgres') {
     const pool = new pg.Pool({ connectionString: config.url })
     // Idle connections can be dropped by the server (Neon suspends idle compute after a few
@@ -70,8 +78,13 @@ export async function openDatabase(config: DatabaseConfig): Promise<DatabaseHand
         await assertNeonBranch((sql) => pool.query<{ branch: string | null }>(sql), config.expectedNeonBranchId)
       }
       const db = drizzleNodePg(pool, { schema })
-      await migrateNodePg(db, { migrationsFolder: MIGRATIONS_FOLDER })
-      return { db, close: () => pool.end() }
+      const handle: DatabaseHandle = {
+        db,
+        migrate: () => migrateNodePg(db, { migrationsFolder: MIGRATIONS_FOLDER }),
+        close: () => pool.end(),
+      }
+      if (migrate) await handle.migrate()
+      return handle
     } catch (error) {
       await pool.end()
       throw error
@@ -82,6 +95,11 @@ export async function openDatabase(config: DatabaseConfig): Promise<DatabaseHand
   if (config.dataDir) mkdirSync(config.dataDir, { recursive: true })
   const client = new PGlite(config.dataDir)
   const db = drizzlePglite(client, { schema })
-  await migratePglite(db, { migrationsFolder: MIGRATIONS_FOLDER })
-  return { db, close: () => client.close() }
+  const handle: DatabaseHandle = {
+    db,
+    migrate: () => migratePglite(db, { migrationsFolder: MIGRATIONS_FOLDER }),
+    close: () => client.close(),
+  }
+  if (migrate) await handle.migrate()
+  return handle
 }

@@ -22,7 +22,7 @@ beforeAll(async () => {
   backend = new PGlite()
   server = new PGLiteSocketServer({ db: backend, port: PORT, host: '127.0.0.1' })
   await server.start()
-  handle = await openDatabase({ kind: 'postgres', url: `postgres://postgres@127.0.0.1:${PORT}/postgres` })
+  handle = await openDatabase({ kind: 'postgres', url: `postgres://postgres@127.0.0.1:${PORT}/postgres` }, { migrate: true })
 })
 
 afterAll(async () => {

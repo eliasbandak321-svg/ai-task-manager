@@ -74,13 +74,14 @@ npm install
 npm run dev        # app + API: http://localhost:5173 (the dashboard is at /app)
 ```
 
-`npm run dev` starts the website and the API together, and applies database migrations automatically.
+`npm run dev` applies any pending database migrations once (`npm run db:migrate`), then starts the website and the API together. The API itself never migrates: on startup it only checks that the schema is current.
 
-**Database:** the project uses [Neon](https://neon.tech) PostgreSQL (free plan). Copy `.env.example` to `.env` and set `DATABASE_URL` to your Neon **development** branch's connection string and `NEON_BRANCH_ID` to that branch's ID; the API refuses to run against any other branch. Without a `.env`, the API falls back to an embedded PostgreSQL (PGlite) in `.data/pglite`, so you can also work offline. Automated tests always use PGlite and never touch Neon.
+**Database:** the project uses [Neon](https://neon.tech) PostgreSQL (free plan). Copy `.env.example` to `.env` and set `DATABASE_PROVIDER=neon`, `DATABASE_URL` (your Neon **development** branch's connection string) and `NEON_BRANCH_ID` (that branch's ID); the API refuses to run against any other branch, and stops with a clear message if the configuration is missing or incomplete. To work offline instead, run `npm run dev:offline`, which uses an embedded PostgreSQL (PGlite) in `.data/pglite`. Automated tests always use PGlite and never touch Neon.
 
 | Command | What it does |
 |---|---|
 | `npm run dev` | Start the website and the API (with auto-reload) |
+| `npm run dev:offline` | The same, using the embedded offline database (PGlite) instead of Neon |
 | `npm run dev:web` / `npm run dev:api` | Start only one of them |
 | `npm run build` | Typecheck and build for production |
 | `npm run preview` | Serve the production build locally |
@@ -90,7 +91,7 @@ npm run dev        # app + API: http://localhost:5173 (the dashboard is at /app)
 | `npm run test:run` | Run all tests once |
 | `npm run test:coverage` | Run all tests with a coverage report (`coverage/index.html`) |
 | `npm run db:generate` | Create a migration after changing `server/db/schema.ts` |
-| `npm run db:migrate` | Apply pending migrations to the configured database |
+| `npm run db:migrate` | Apply pending migrations to the configured database (the only way migrations run; production needs `-- --confirm-production=<branch-id>`) |
 | `npm run test:neon` | Optional: run the repository tests against the Neon development branch (cleans up after itself) |
 
 ## What I'm Learning

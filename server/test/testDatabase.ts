@@ -11,7 +11,7 @@ import { ensureUserWithInbox } from '../db/users'
 export function setupTestDatabase(): () => Database {
   let handle: DatabaseHandle | undefined
   beforeAll(async () => {
-    handle = await openDatabase({ kind: 'pglite' })
+    handle = await openDatabase({ kind: 'pglite' }, { migrate: true })
   })
   afterAll(async () => {
     await handle?.close()
