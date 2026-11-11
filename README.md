@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, and (soon) use AI to turn a complex goal into a concrete plan. Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M5 are complete: the dashboard works on local data stored in your browser. Next up: the backend and database (M6). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
+> **Status:** 🚧 In development. M1–M6 are complete: the dashboard runs on a Hono API with a PostgreSQL database. Next up: accounts and security (M7). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
 
 ## Features
 
@@ -13,11 +13,11 @@ A full-stack productivity app for students, developers and professionals: organi
 - **Accessibility**: skip link, landmarks, full keyboard support, visible focus and WCAG AA contrast (Lighthouse Accessibility 100)
 - **CI**: lint, typecheck, tests and build run on every pull request (GitHub Actions)
 - **Domain logic**: Zod schemas and pure, fully tested functions for projects, tasks, subtasks, deadlines, statistics, search, filtering and sorting
-- **Dashboard** (`/app`): projects with a default Inbox; tasks with statuses, priorities and deadlines; subtask checklists; progress statistics; search, filters and sorting kept in the URL; accessible dialogs with confirmation before deleting. Data is stored in your browser until the backend arrives in M6.
+- **Dashboard** (`/app`): projects with a default Inbox; tasks with statuses, priorities and deadlines; subtask checklists; progress statistics; search, filters and sorting kept in the URL; accessible dialogs with confirmation before deleting. Data is stored in PostgreSQL through the API.
+- **API and database**: a Hono REST API with PostgreSQL and Drizzle ORM (committed migrations, database constraints as a second line of defence), consistent JSON errors, and tests proving users can't see or change each other's data. Locally it runs on PGlite (PostgreSQL in WebAssembly), so there's nothing to install.
 
 ### Planned (MVP)
-- Accounts with email and password, with each user's data isolated and secure
-- PostgreSQL persistence through an API, replacing browser storage
+- Accounts with email and password (the API is already built to scope every query to the signed-in user)
 - End-to-end tests and a security review
 - Public deployment once the app is complete, redesigned and fully tested
 
@@ -34,8 +34,8 @@ A full-stack productivity app for students, developers and professionals: organi
 | React Three Fiber + Three.js | Declarative 3D for the hero particle wave |
 | React Router + TanStack Query | Client routing; caching, loading and error states for server data |
 | Zod | One schema for both runtime validation and TypeScript types, shared by the frontend and the API |
-| Hono *(M6)* | Small TypeScript API, served from the same domain as the app (Vercel Functions in production) |
-| PostgreSQL + Drizzle ORM *(M6)* (Neon in production) | Relational data, type-safe queries, versioned migrations |
+| Hono | Small TypeScript API, served from the same domain as the app (Vercel Functions in production) |
+| PostgreSQL + Drizzle ORM (PGlite locally, Neon in production) | Relational data, type-safe queries, versioned migrations |
 | Better Auth *(M7)* | Self-hosted email and password auth with secure cookie sessions |
 | Claude API *(M9)* | AI Task Breakdown, called only from the server |
 | Vitest, React Testing Library, PGlite, Playwright | Unit, component, API and end-to-end tests |
@@ -52,7 +52,7 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [x] M3: Design system & landing page, CI
 - [x] M4: Domain model & logic (test-first)
 - [x] M5: Functional dashboard (local data, async repository)
-- [ ] M6: Backend & database (Hono, Neon, Drizzle)
+- [x] M6: Backend & database (Hono, PostgreSQL, Drizzle)
 - [ ] M7: Authentication & security (Better Auth, user isolation)
 - [ ] M8: Hardening (password reset, end-to-end tests, security review)
 - [ ] M9: AI Task Breakdown
@@ -71,12 +71,15 @@ Development and testing happen on localhost until M11. GitHub pull requests and 
 git clone https://github.com/eliasbandak321-svg/ai-task-manager.git
 cd ai-task-manager
 npm install
-npm run dev        # http://localhost:5173 (the app is at /app)
+npm run dev        # app + API: http://localhost:5173 (the dashboard is at /app)
 ```
+
+`npm run dev` starts the website and the API together. The API stores data in an embedded PostgreSQL (PGlite) in `.data/pglite` and applies migrations automatically; delete that folder to start fresh. To use your own PostgreSQL server instead, copy `.env.example` to `.env` and set `DATABASE_URL`.
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start the development server |
+| `npm run dev` | Start the website and the API (with auto-reload) |
+| `npm run dev:web` / `npm run dev:api` | Start only one of them |
 | `npm run build` | Typecheck and build for production |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | Lint the code with oxlint |
@@ -84,6 +87,8 @@ npm run dev        # http://localhost:5173 (the app is at /app)
 | `npm test` | Run tests in watch mode |
 | `npm run test:run` | Run all tests once |
 | `npm run test:coverage` | Run all tests with a coverage report (`coverage/index.html`) |
+| `npm run db:generate` | Create a migration after changing `server/db/schema.ts` |
+| `npm run db:migrate` | Apply pending migrations to the configured database |
 
 ## What I'm Learning
 

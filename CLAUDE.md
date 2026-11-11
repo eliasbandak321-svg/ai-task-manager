@@ -15,7 +15,7 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - **Frontend:** React + TypeScript (strict mode), Vite SPA, Tailwind CSS v4, React Router and TanStack Query (M5)
 - **Validation:** Zod schemas, shared by the frontend and the API (M4)
 - **API:** Hono, same origin as the frontend (Vite proxy locally, Vercel Functions in production) (M6)
-- **Database:** PostgreSQL with Drizzle ORM and committed migrations (M6); Neon in production (M11)
+- **Database:** PostgreSQL with Drizzle ORM and committed migrations (M6); PGlite locally by default, Neon in production (M11)
 - **Auth:** Better Auth, email and password, cookie sessions (M7); password reset (M8)
 - **AI:** Claude API, server-side only, structured output validated with Zod (M9)
 - **Tests:** Vitest, React Testing Library, PGlite for API tests (M6), Playwright end-to-end (M8)
@@ -57,7 +57,8 @@ The developer is a student learning professional software engineering. Act as a 
 ## Commands
 Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Control blocks Vite's native bundler on native Windows.
 
-- `npm run dev`: start the dev server at http://localhost:5173
+- `npm run dev`: start the web app (http://localhost:5173) and the API (127.0.0.1:8787, proxied as /api)
+- `npm run dev:web` / `npm run dev:api`: start only one of them
 - `npm run build`: typecheck, then build for production into `dist/`
 - `npm run preview`: serve the production build locally
 - `npm run lint`: lint with oxlint (including jsx-a11y accessibility rules)
@@ -65,5 +66,9 @@ Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Contro
 - `npm test`: run Vitest in watch mode
 - `npm run test:run`: run all tests once
 - `npm run test:coverage`: tests with a coverage report (`coverage/index.html`)
+- `npm run db:generate`: create a migration in `drizzle/` after changing `server/db/schema.ts` (never edit the database by hand)
+- `npm run db:migrate`: apply migrations (the dev API also does this on startup)
+
+Local data lives in PGlite at `.data/pglite` (git-ignored). Set `DATABASE_URL` in `.env` to use a PostgreSQL server instead.
 
 Run `lint`, `typecheck`, `test:run`, and `build` before every commit. CI runs the same checks on every pull request.
