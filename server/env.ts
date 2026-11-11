@@ -135,7 +135,9 @@ export function trustedProxies(env: Pick<Env, 'TRUSTED_PROXIES' | 'NODE_ENV'>): 
 }
 
 export function loadEnv(source: Record<string, string | undefined>): Env {
-  const result = envSchema.safeParse(source)
+  // An empty variable (FOO=) means "not set", e.g. to blank an inherited value.
+  const defined = Object.fromEntries(Object.entries(source).filter(([, value]) => value !== ''))
+  const result = envSchema.safeParse(defined)
   if (!result.success) {
     throw new Error(`Invalid environment configuration:\n${z.prettifyError(result.error)}`)
   }

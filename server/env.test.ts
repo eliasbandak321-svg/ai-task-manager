@@ -46,6 +46,15 @@ describe('loadEnv: choosing the database', () => {
   })
 })
 
+describe('loadEnv: empty values', () => {
+  it('treats an empty variable as not set, so an inherited value can be blanked', () => {
+    // How the end-to-end tests make sure an exported Neon URL in the shell can't reach them.
+    const env = loadEnv({ ...neon, DATABASE_PROVIDER: 'pglite', DATABASE_URL: '', NEON_BRANCH_ID: '' })
+    expect(databaseConfig(env)).toEqual({ kind: 'pglite', dataDir: '.data/pglite' })
+    expect(() => loadEnv({ ...neon, BETTER_AUTH_SECRET: '' })).toThrow(/BETTER_AUTH_SECRET is not set/)
+  })
+})
+
 describe('loadEnv: other settings', () => {
   it('has safe defaults and validates values', () => {
     expect(loadEnv(neon)).toMatchObject({ NODE_ENV: 'development', API_PORT: 8787 })

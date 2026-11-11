@@ -16,10 +16,23 @@ process.env.E2E_RUN_DIR ??= mkdtempSync(join(tmpdir(), 'ai-task-manager-e2e-'))
 const runDir = process.env.E2E_RUN_DIR
 export const MAIL_DIR = join(runDir, 'mail')
 
+/*
+  Isolation from Neon and real accounts doesn't rely on the env file alone: Node never
+  overrides variables already set in the shell, so a shell that exports DATABASE_PROVIDER or
+  DATABASE_URL could otherwise point the tests at Neon. Every safety-critical value is set
+  here explicitly (webServer.env always wins), and DATABASE_URL / NEON_BRANCH_ID are blanked.
+*/
 const serverEnv = {
   ENV_FILE: 'e2e/.env.e2e',
+  NODE_ENV: 'development',
+  DATABASE_PROVIDER: 'pglite',
+  DATABASE_URL: '',
+  NEON_BRANCH_ID: '',
   PGLITE_DIR: join(runDir, 'db'),
+  MAIL_TRANSPORT: 'file',
   MAIL_DIR,
+  BETTER_AUTH_SECRET: 'e2e-test-secret-not-used-anywhere-else-0123456789',
+  APP_ORIGIN: 'http://localhost:5175',
   API_PORT: '8790',
   WEB_PORT: '5175',
 }
