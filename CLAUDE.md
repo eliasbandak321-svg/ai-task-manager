@@ -15,7 +15,7 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - **Frontend:** React + TypeScript (strict mode), Vite SPA, Tailwind CSS v4, React Router and TanStack Query (M5)
 - **Validation:** Zod schemas, shared by the frontend and the API (M4)
 - **API:** Hono, same origin as the frontend (Vite proxy locally, Vercel Functions in production) (M6)
-- **Database:** PostgreSQL with Drizzle ORM and committed migrations (M6); Neon in production (M11)
+- **Database:** Neon PostgreSQL with Drizzle ORM and committed migrations (M6): the `development` branch locally, the `production` branch only from M11. PGlite for automated tests and explicitly selected offline development (`npm run dev:offline`)
 - **Auth:** Better Auth, email and password, cookie sessions (M7); password reset (M8)
 - **AI:** Claude API, server-side only, structured output validated with Zod (M9)
 - **Tests:** Vitest, React Testing Library, PGlite for API tests (M6), Playwright end-to-end (M8)
@@ -57,7 +57,8 @@ The developer is a student learning professional software engineering. Act as a 
 ## Commands
 Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Control blocks Vite's native bundler on native Windows.
 
-- `npm run dev`: start the dev server at http://localhost:5173
+- `npm run dev`: start the web app (http://localhost:5173) and the API (127.0.0.1:8787, proxied as /api)
+- `npm run dev:web` / `npm run dev:api`: start only one of them
 - `npm run build`: typecheck, then build for production into `dist/`
 - `npm run preview`: serve the production build locally
 - `npm run lint`: lint with oxlint (including jsx-a11y accessibility rules)
@@ -65,5 +66,12 @@ Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Contro
 - `npm test`: run Vitest in watch mode
 - `npm run test:run`: run all tests once
 - `npm run test:coverage`: tests with a coverage report (`coverage/index.html`)
+- `npm run db:generate`: create a migration in `drizzle/` after changing `server/db/schema.ts` (never edit the database by hand)
+- `npm run db:migrate`: the only way migrations are applied (servers never migrate; they refuse to start with pending migrations). `npm run dev` runs it once per session. Production requires `-- --confirm-production=<NEON_BRANCH_ID>`
+- `npm run dev:offline`: run the app on the embedded PGlite database instead of Neon
+
+- `npm run test:neon`: optional contract tests against the Neon development branch (cleans up its test users)
+
+Database: `.env` (git-ignored) holds `DATABASE_PROVIDER=neon`, `DATABASE_URL` for the Neon **development** branch and `NEON_BRANCH_ID`; the API refuses any other branch, and there is no silent fallback to PGlite. Never print, log or commit the connection string, and never touch the Neon `production` branch before M11. PGlite is used only by automated tests and by `npm run dev:offline`.
 
 Run `lint`, `typecheck`, `test:run`, and `build` before every commit. CI runs the same checks on every pull request.

@@ -26,7 +26,8 @@ if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.sho
   HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
     if (!this.hasAttribute('open')) return
     this.removeAttribute('open')
-    this.dispatchEvent(new Event('close'))
+    // Browsers fire "close" in a later task, not during close() itself.
+    setTimeout(() => this.dispatchEvent(new Event('close')), 0)
   }
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return

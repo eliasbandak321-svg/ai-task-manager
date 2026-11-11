@@ -3,7 +3,7 @@ import { Route, Routes } from 'react-router'
 import { AppShell } from '../components/dashboard/AppShell'
 import { NotFoundMessage } from '../components/dashboard/NotFoundMessage'
 import { Toaster } from '../components/dashboard/Toaster'
-import { createMemoryStorage, LocalRepository, type KeyValueStorage } from '../data/localRepository'
+import { HttpRepository } from '../data/httpRepository'
 import type { TaskRepository } from '../data/repository'
 import { RepositoryContext } from '../data/repositoryContext'
 import { TasksPage } from './TasksPage'
@@ -12,26 +12,15 @@ import { TasksPage } from './TasksPage'
   The dashboard (/app/*). It's loaded lazily from App.tsx, so visitors of the landing page
   never download it, nor React Query.
 
-  This is the single place that decides which repository the app uses. In M6 the
-  LocalRepository below is swapped for the HTTP adapter; nothing else changes.
+  This is the single place that decides which repository the app uses: since M6, the HTTP
+  adapter talking to the API on the same origin (/api). Nothing else in the UI knows.
+  (LocalRepository still exists: the UI tests use it as a fast in-memory backend, and it
+  passes the same contract tests.)
 */
-
-function browserStorage(): KeyValueStorage {
-  try {
-    // Accessing localStorage throws when the browser blocks site data.
-    return window.localStorage
-  } catch {
-    return createMemoryStorage()
-  }
-}
 
 let defaultRepository: TaskRepository | undefined
 function getDefaultRepository(): TaskRepository {
-  defaultRepository ??= new LocalRepository({
-    storage: browserStorage(),
-    // A small delay in development keeps loading states honest; the real API will have latency.
-    latencyMs: import.meta.env.DEV ? 150 : 0,
-  })
+  defaultRepository ??= new HttpRepository()
   return defaultRepository
 }
 

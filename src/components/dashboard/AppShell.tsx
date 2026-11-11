@@ -37,8 +37,8 @@ export function AppShell() {
           <Wordmark to="/" />
           <p className="inline-flex items-center gap-2 text-sm text-ink-subtle">
             <HardDrive aria-hidden="true" className="size-4" />
-            <span className="sm:hidden">Saved locally</span>
-            <span className="hidden sm:inline">Saved in this browser · accounts coming soon</span>
+            <span className="sm:hidden">Local database</span>
+            <span className="hidden sm:inline">Local development database · accounts coming soon</span>
           </p>
         </Container>
       </header>

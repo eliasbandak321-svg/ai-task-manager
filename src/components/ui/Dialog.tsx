@@ -51,7 +51,11 @@ export function Dialog({ title, description, onClose, children }: DialogProps) {
       }}
       // Browsers may close a dialog without a cancelable "cancel" event (Chrome does after
       // repeated Escape presses). Reacting to "close" too keeps React state in sync.
-      onClose={onClose}
+      // The event arrives asynchronously, so only act if the dialog is still closed by then:
+      // React's StrictMode closes and immediately reopens it during development.
+      onClose={(event) => {
+        if (!event.currentTarget.open) onClose()
+      }}
       className="m-auto w-full max-w-lg bg-transparent p-4 text-ink backdrop:bg-night/80 backdrop:backdrop-blur-sm"
     >
       <div className="rounded-card border border-line-strong bg-surface p-5 shadow-card sm:p-6">
