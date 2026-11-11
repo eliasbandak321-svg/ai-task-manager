@@ -5,6 +5,9 @@ const NEW_PASSWORD = 'a brand new passphrase'
 async function requestReset(page: import('@playwright/test').Page, email: string) {
   await page.goto('/login')
   await page.getByRole('link', { name: 'Forgot your password?' }).click()
+  // Wait for the new page first: the login page has an "Email" field too, and typing before the
+  // client-side navigation finishes would fill the wrong one (seen once in CI).
+  await expect(page.getByRole('heading', { level: 1, name: 'Reset your password' })).toBeVisible()
   await page.getByRole('textbox', { name: 'Email' }).fill(email)
   await page.getByRole('button', { name: 'Send reset link' }).click()
   await expect(page.getByText(/If an account exists for/)).toContainText(email)

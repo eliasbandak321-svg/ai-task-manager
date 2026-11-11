@@ -218,7 +218,7 @@ Production **refuses to start** until the items marked ⛔ are done (`server/env
 | Secret | A new `BETTER_AUTH_SECRET` (never reuse the development one) |
 | Email sender | `MAIL_FROM` on a domain with SPF/DKIM/DMARC configured |
 | Static site headers | CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy` for the SPA (the API already sends security headers) in `vercel.json` |
-| Rate limit table | Consider periodic cleanup of old `rate_limit` rows |
+| Rate limit table | Schedule cleanup of old `rate_limit` rows. Keys include the request path, and for reset links that path contains the (single-use, 15-minute) token, so rows accumulate per link |
 | Keep checks on | Never set `disableOriginCheck` / `disableCSRFCheck`, or loosen the redirect check in `server/app.ts`; they're forced on deliberately (M8 audit, finding 1) |
 | Separate data | Never copy development data (Neon `development` branch, `.backups/`, PGlite) into production; production starts empty from the migrations |
 | Re-run | `npm run test:e2e` against a preview deployment, and the isolation tests |

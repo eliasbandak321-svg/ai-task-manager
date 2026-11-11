@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test as base, expect, type Browser, type Page } from '@playwright/test'
@@ -13,11 +14,14 @@ import { test as base, expect, type Browser, type Page } from '@playwright/test'
 export const PASSWORD = 'correct horse battery staple'
 const MAIL_DIR = join(process.env.E2E_RUN_DIR ?? '', 'mail')
 
-let ipCounter = 0
-/** A fresh documentation-range address (RFC 5737) per client, so limits don't collide. */
+/**
+ * A fresh client address per test (and per extra browser), so rate limits never collide.
+ * Random within 198.18.0.0/15, a range reserved for testing (RFC 2544): a counter would
+ * restart whenever Playwright starts a new worker process, reusing addresses whose limits
+ * are already spent.
+ */
 export function nextClientIp(): string {
-  ipCounter += 1
-  return `198.51.${Math.floor(ipCounter / 250) % 250}.${(ipCounter % 250) + 1}`
+  return `198.${18 + randomInt(2)}.${randomInt(256)}.${1 + randomInt(254)}`
 }
 
 let emailCounter = 0
@@ -27,10 +31,12 @@ export function uniqueEmail(name = 'user'): string {
 }
 
 export const test = base.extend({
-  // Playwright reads fixture dependencies from this (empty) destructuring pattern.
-  // oxlint-disable-next-line no-empty-pattern
-  extraHTTPHeaders: async ({}, provide) => {
-    await provide({ 'X-Forwarded-For': nextClientIp() })
+  // Set on each test's own browser context. (Overriding the extraHTTPHeaders option instead
+  // was resolved once and shared by every test, so all tests landed in one rate-limit
+  // bucket and hit the limits after a few runs.)
+  context: async ({ context }, provide) => {
+    await context.setExtraHTTPHeaders({ 'X-Forwarded-For': nextClientIp() })
+    await provide(context)
   },
 })
 export { expect }
