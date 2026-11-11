@@ -221,7 +221,7 @@ The dashboard prioritises function, usability and accessibility. It reuses the l
 
 ### Layout [Decided at the start of M5]
 
-- **Header:** wordmark (links to `/`) and a note that data is saved in this browser (accounts come in M7).
+- **Header:** wordmark (links to `/`), the signed-in user's name and email, and a **Sign out** button.
 - **Project navigation:** a sidebar (16 rem) on large screens (≥ 1024 px). On smaller screens it collapses into a full-width "Projects: <current>" button above the content that expands the same list, so the tasks stay at the top of the page. The list shows "All tasks", then the Inbox and the other projects with their completion percentage, plus a "New project" button.
 - **Page:** the title (`h1`), the actions (New task; Rename and Delete for regular projects only), the statistics panel, the quick-add field, the search and filter toolbar, a live result count, and the task list.
 - **Single column** inside the content area at every width; the task list never scrolls horizontally.
@@ -246,7 +246,7 @@ The dashboard prioritises function, usability and accessibility. It reuses the l
 
 ### Still to come
 
-- **Auth screens:** sign up and log in (M7), and password reset (M8), in the same visual language.
+- **Auth screens (M7):** `/login` and `/signup` — a centred card with the wordmark, labelled fields with inline validation, one primary button, a link to the other page, and errors announced in an alert. Signed-out visitors to `/app` are sent to `/login` and returned afterwards. Password reset follows in M8.
 - **AI Task Breakdown** (M9) and the complete visual redesign of the landing page and dashboard (M10).
 
 ## 11. Resolved questions

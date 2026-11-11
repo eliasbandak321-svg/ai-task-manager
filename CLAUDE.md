@@ -16,7 +16,7 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - **Validation:** Zod schemas, shared by the frontend and the API (M4)
 - **API:** Hono, same origin as the frontend (Vite proxy locally, Vercel Functions in production) (M6)
 - **Database:** Neon PostgreSQL with Drizzle ORM and committed migrations (M6): the `development` branch locally, the `production` branch only from M11. PGlite for automated tests and explicitly selected offline development (`npm run dev:offline`)
-- **Auth:** Better Auth, email and password, cookie sessions (M7); password reset (M8)
+- **Auth:** Better Auth, email and password, database sessions in HttpOnly SameSite cookies, Origin-checked CSRF protection, database rate limiting (M7); password reset (M8)
 - **AI:** Claude API, server-side only, structured output validated with Zod (M9)
 - **Tests:** Vitest, React Testing Library, PGlite for API tests (M6), Playwright end-to-end (M8)
 - **CI:** GitHub Actions on every pull request (lint, typecheck, test, build)
