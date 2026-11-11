@@ -2,13 +2,12 @@ import { lazy, Suspense } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { Route, Routes } from 'react-router'
 import { LandingPage } from './pages/LandingPage'
-import { NotFoundPage } from './pages/NotFoundPage'
 
 /*
   Top-level routes:
   - /       the landing page (in the main bundle: it's what most first-time visitors see)
-  - /app/*  the dashboard, code-split into its own chunk and loaded on first visit
-  - *       everything else
+  - /*      everything else — sign-in, sign-up, the dashboard and "not found" — code-split
+            into its own chunk (pages/DashboardApp.tsx) and loaded on first visit
 
   In production (M11) the host must serve index.html for these paths (SPA rewrites,
   docs/architecture.md §9). `vite dev` and `vite preview` already do.
@@ -34,7 +33,7 @@ export function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route
-        path="/app/*"
+        path="/*"
         element={
           <ErrorBoundary fallback={appLoadError}>
             <Suspense fallback={appLoading}>
@@ -43,7 +42,6 @@ export function App() {
           </ErrorBoundary>
         }
       />
-      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }

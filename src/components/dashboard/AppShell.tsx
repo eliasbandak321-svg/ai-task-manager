@@ -1,6 +1,6 @@
-import { HardDrive } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router'
+import { AccountMenu } from '../auth/AccountMenu'
 import { Container } from '../Container'
 import { Wordmark } from '../Wordmark'
 import { ProjectNav } from './ProjectNav'
@@ -35,11 +35,7 @@ export function AppShell() {
       <header className="sticky top-0 z-40 border-b border-line bg-night/90 backdrop-blur-md">
         <Container className="flex h-16 items-center justify-between gap-4">
           <Wordmark to="/" />
-          <p className="inline-flex items-center gap-2 text-sm text-ink-subtle">
-            <HardDrive aria-hidden="true" className="size-4" />
-            <span className="sm:hidden">Local database</span>
-            <span className="hidden sm:inline">Local development database · accounts coming soon</span>
-          </p>
+          <AccountMenu />
         </Container>
       </header>
 

@@ -1,10 +1,11 @@
-import { QueryClient } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { RepositoryError } from '../data/errors'
 import { createMemoryStorage, LocalRepository } from '../data/localRepository'
+import { createQueryClient } from '../data/queryClient'
+import { createFakeAuthClient } from '../test/fakeAuthClient'
 import type { TaskRepository } from '../data/repository'
 import DashboardApp from './DashboardApp'
 
@@ -26,19 +27,26 @@ function createRepository() {
   return new LocalRepository({ storage: createMemoryStorage() })
 }
 
-function renderDashboard(path = '/app', repository: TaskRepository = createRepository()) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+function renderDashboard(
+  path = '/app',
+  repository: TaskRepository = createRepository(),
+  authClient = createFakeAuthClient({ signedIn: true }),
+) {
+  const queryClient = createQueryClient({ retry: false })
   // No artificial delay between keystrokes: keeps these tests fast and stable under load.
   const user = userEvent.setup({ delay: null })
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/app/*" element={<DashboardApp repository={repository} queryClient={queryClient} />} />
+        <Route
+          path="/*"
+          element={<DashboardApp repository={repository} authClient={authClient} queryClient={queryClient} />}
+        />
       </Routes>
       <LocationDisplay />
     </MemoryRouter>,
   )
-  return { user, repository }
+  return { user, repository, authClient }
 }
 
 /** A repository with an Inbox task and a "Work" project holding two tasks and a subtask. */
@@ -79,7 +87,9 @@ afterEach(() => {
 describe('dashboard: states', () => {
   it('shows a loading state, then an empty Inbox for a new user', async () => {
     renderDashboard()
-    expect(screen.getByText(/loading your tasks/i)).toBeInTheDocument()
+    // First the session is checked, then the data loads.
+    expect(screen.getByText(/checking your session/i)).toBeInTheDocument()
+    expect(await screen.findByText(/loading your tasks/i)).toBeInTheDocument()
 
     expect(await pageHeading('All tasks')).toBeInTheDocument()
     expect(screen.getByText('No tasks yet')).toBeInTheDocument()

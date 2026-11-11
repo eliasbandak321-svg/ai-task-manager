@@ -15,7 +15,7 @@ import {
   type Subtask,
   type Task,
 } from '../domain'
-import { RepositoryError } from './errors'
+import { AuthRequiredError, RepositoryError } from './errors'
 import type {
   CreateProjectRequest,
   CreateSubtaskRequest,
@@ -178,7 +178,7 @@ export class HttpRepository implements TaskRepository {
     if (apiError && DOMAIN_ERROR_CODES.has(apiError.code)) {
       return new DomainError(apiError.code as DomainErrorCode, apiError.message)
     }
-    if (response.status === 401) return new RepositoryError(MESSAGES.unauthenticated)
+    if (response.status === 401) return new AuthRequiredError(MESSAGES.unauthenticated)
     // A 4xx message from our own API is written for people (e.g. a validation message).
     if (apiError && response.status < 500) return new RepositoryError(apiError.message)
     return new RepositoryError(MESSAGES.server, { cause: apiError ?? response.status })
