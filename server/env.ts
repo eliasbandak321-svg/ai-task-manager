@@ -115,6 +115,26 @@ export function databaseConfig(env: Env): DatabaseConfig {
   }
 }
 
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+
+/**
+ * The origins allowed to send requests that change data (CSRF check), for both the API and
+ * Better Auth.
+ *
+ * - Production: exactly APP_ORIGIN.
+ * - Development with a local APP_ORIGIN: also the other loopback names for the *same* scheme
+ *   and port. `localhost`, `127.0.0.1` and `[::1]` all mean this computer, but browsers treat
+ *   them as different origins, and tools open the dev server under either name (Vite prints
+ *   localhost; VS Code's port forwarding often opens 127.0.0.1). Only this machine can use
+ *   these addresses, so trusting them doesn't let any other website through.
+ */
+export function trustedOrigins(env: Pick<Env, 'APP_ORIGIN' | 'NODE_ENV'>): string[] {
+  const app = new URL(env.APP_ORIGIN)
+  if (env.NODE_ENV === 'production' || !LOOPBACK_HOSTS.includes(app.hostname)) return [app.origin]
+  const port = app.port ? `:${app.port}` : ''
+  return [app.origin, ...LOOPBACK_HOSTS.map((host) => `${app.protocol}//${host}${port}`).filter((origin) => origin !== app.origin)]
+}
+
 /** A short description of the database for logs. Never includes the connection string. */
 export function describeDatabase(env: Env): string {
   switch (env.DATABASE_PROVIDER) {

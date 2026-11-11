@@ -74,7 +74,7 @@ npm install
 npm run dev        # app + API: http://localhost:5173 (the dashboard is at /app)
 ```
 
-`npm run dev` applies any pending database migrations once (`npm run db:migrate`), then starts the website and the API together. The API itself never migrates: on startup it only checks that the schema is current.
+Open the app at **http://localhost:5173** (`127.0.0.1:5173` works too). `npm run dev` applies any pending database migrations once (`npm run db:migrate`), then starts the website and the API together. The API itself never migrates: on startup it only checks that the schema is current.
 
 **Database:** the project uses [Neon](https://neon.tech) PostgreSQL (free plan). Copy `.env.example` to `.env` and set `DATABASE_PROVIDER=neon`, `DATABASE_URL` (your Neon **development** branch's connection string) and `NEON_BRANCH_ID` (that branch's ID); the API refuses to run against any other branch, and stops with a clear message if the configuration is missing or incomplete. To work offline instead, run `npm run dev:offline`, which uses an embedded PostgreSQL (PGlite) in `.data/pglite`. Automated tests always use PGlite and never touch Neon.
 

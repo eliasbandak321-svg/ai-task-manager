@@ -72,6 +72,7 @@ export const AUTH_MESSAGES = {
 const userResponseSchema = z.object({ user: sessionUserSchema })
 const sessionResponseSchema = z.object({ user: sessionUserSchema }).nullable()
 const errorResponseSchema = z.object({ message: z.string().optional() }).loose()
+const apiErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
 
 export class HttpAuthClient implements AuthClient {
   private readonly baseUrl: string
@@ -137,7 +138,11 @@ function toAuthError(status: number, json: unknown): AuthError {
   if (status === 401) return new AuthError(AUTH_MESSAGES.invalidCredentials)
   if (status === 422) return new AuthError(AUTH_MESSAGES.emailTaken)
   if (status === 429) return new AuthError(AUTH_MESSAGES.tooManyAttempts)
-  if (status === 403) return new AuthError(AUTH_MESSAGES.blocked)
+  if (status === 403) {
+    // Our API's origin check explains itself (in development it names the right address).
+    const apiError = apiErrorSchema.safeParse(json).data?.error
+    return new AuthError(apiError?.code === 'FORBIDDEN_ORIGIN' ? apiError.message : AUTH_MESSAGES.blocked)
+  }
   if (status >= 400 && status < 500) {
     const message = errorResponseSchema.safeParse(json).data?.message
     if (message) return new AuthError(message)

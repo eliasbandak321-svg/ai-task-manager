@@ -9,8 +9,11 @@ export default defineConfig({
   // The API runs as its own process (npm run dev:api). Proxying /api keeps the browser on one
   // origin, as in production, so cookies and URLs behave the same (docs/architecture.md §9).
   // xfwd adds X-Forwarded-For, so the API's rate limiting sees the browser's address.
-  server: { proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
-  preview: { proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
+  // The app must run at the origin the API trusts (APP_ORIGIN, default http://localhost:5173):
+  // strictPort makes Vite stop with an error instead of quietly moving to another port,
+  // which the API's CSRF check would (rightly) refuse.
+  server: { port: 5173, strictPort: true, proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
+  preview: { port: 5173, strictPort: true, proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
   test: {
     // Half the CPU cores: each worker runs its own jsdom or database, and with every core busy,
     // machines with little memory (e.g. a default WSL setup) start swapping and tests time out.

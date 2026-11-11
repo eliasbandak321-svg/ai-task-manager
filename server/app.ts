@@ -28,6 +28,11 @@ export interface AppOptions {
    * any other origin are refused before they reach a route: the CSRF check.
    */
   trustedOrigins: readonly string[]
+  /**
+   * Say which address to use when a request is blocked by the origin check. Development only:
+   * in production the message stays generic.
+   */
+  explainBlockedOrigins?: boolean
   /** Handles /api/auth/* (Better Auth): sign-up, sign-in, sign-out, session. */
   authHandler?: (request: Request) => Promise<Response>
   /** Injected for tests; default to the real clock and random UUIDs. */
@@ -83,7 +88,7 @@ function isCrossOrigin(c: Context, trustedOrigins: readonly string[]): boolean {
   return site !== undefined && site !== 'same-origin' && site !== 'none'
 }
 
-export function createApp({ db, resolveUserId, trustedOrigins, authHandler, now, newId }: AppOptions) {
+export function createApp({ db, resolveUserId, trustedOrigins, explainBlockedOrigins = false, authHandler, now, newId }: AppOptions) {
   const app = new Hono<AppEnv>().basePath('/api')
 
   app.use(secureHeaders())
@@ -101,7 +106,11 @@ export function createApp({ db, resolveUserId, trustedOrigins, authHandler, now,
 
   app.use(async (c, next) => {
     if (UNSAFE_METHODS.has(c.req.method) && isCrossOrigin(c, trustedOrigins)) {
-      throw new ApiError(403, 'FORBIDDEN_ORIGIN', 'This request was blocked because it came from another website.')
+      const origin = c.req.header('origin') ?? `(no Origin; Sec-Fetch-Site: ${c.req.header('sec-fetch-site')})`
+      // Logged so a blocked request is easy to diagnose (and attacks are visible).
+      console.warn(`Blocked ${c.req.method} ${c.req.path}: origin ${origin} is not trusted (trusted: ${trustedOrigins.join(', ')})`)
+      const hint = explainBlockedOrigins ? ` Open the app at ${trustedOrigins[0]} instead.` : ''
+      throw new ApiError(403, 'FORBIDDEN_ORIGIN', `This request was blocked because it came from another website.${hint}`)
     }
     await next()
   })

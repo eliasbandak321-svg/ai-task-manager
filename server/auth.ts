@@ -21,6 +21,8 @@ export interface AuthConfig {
   secret: string
   /** The app's own origin, e.g. http://localhost:5173. Auth lives under <origin>/api/auth. */
   appOrigin: string
+  /** Origins allowed to call the auth endpoints (see trustedOrigins in env.ts). Defaults to appOrigin. */
+  trustedOrigins?: string[]
   /** Mark cookies `Secure` (HTTPS only). On in production. */
   secureCookies: boolean
   /** Brute-force protection on sign-in and sign-up. On by default; tests may turn it off. */
@@ -29,14 +31,14 @@ export interface AuthConfig {
 
 const DAY_IN_SECONDS = 60 * 60 * 24
 
-export function createAuth({ db, secret, appOrigin, secureCookies, rateLimit = true }: AuthConfig) {
+export function createAuth({ db, secret, appOrigin, trustedOrigins = [appOrigin], secureCookies, rateLimit = true }: AuthConfig) {
   return betterAuth({
     appName: 'AI Task Manager',
     baseURL: appOrigin,
     basePath: '/api/auth',
     secret,
     // Requests that change state must come from these origins (Better Auth's CSRF check).
-    trustedOrigins: [appOrigin],
+    trustedOrigins,
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema: { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits },

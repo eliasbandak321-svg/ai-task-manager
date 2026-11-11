@@ -118,6 +118,18 @@ describe('HttpAuthClient with the real server', () => {
     const blocked = new HttpAuthClient({ fetch: async () => Response.json({ error: {} }, { status: 403 }) })
     await expect(blocked.signOut()).rejects.toEqual(new AuthError(AUTH_MESSAGES.blocked))
 
+    // Our API's origin check explains itself; the client shows that message as is.
+    const wrongAddress = new HttpAuthClient({
+      fetch: async () =>
+        Response.json(
+          { error: { code: 'FORBIDDEN_ORIGIN', message: 'Blocked. Open the app at http://localhost:5173 instead.' } },
+          { status: 403 },
+        ),
+    })
+    await expect(wrongAddress.signUp({ name: 'A', email: 'a@example.test', password: 'long enough' })).rejects.toEqual(
+      new AuthError('Blocked. Open the app at http://localhost:5173 instead.'),
+    )
+
     const garbage = new HttpAuthClient({ fetch: async () => Response.json({ user: { id: 1 } }) })
     await expect(garbage.getSession()).rejects.toEqual(new AuthError(AUTH_MESSAGES.server))
     await expect(garbage.signIn({ email: 'a@example.test', password: 'x' })).rejects.toEqual(
