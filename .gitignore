@@ -25,3 +25,6 @@ Desktop.ini
 
 # Test coverage reports
 coverage/
+
+# Local PGlite database (development data)
+.data/
