@@ -198,6 +198,19 @@ describe('authorization: who is the user?', () => {
     }
   })
 
+  it('only accepts the signed HttpOnly cookie, not the raw token that responses expose to JavaScript', async () => {
+    const { app } = setup()
+    const { cookie, result } = await signUp(app)
+    const rawToken = (result.json as { token?: string }).token
+    expect(rawToken).toBeTruthy()
+
+    // The cookie carries the token plus a signature made with BETTER_AUTH_SECRET; the token
+    // alone (e.g. stolen by a script) works neither as a cookie nor as a Bearer token.
+    expect((await send(app, 'GET', '/api/projects', { cookie })).status).toBe(200)
+    expect((await send(app, 'GET', '/api/projects', { cookie: `better-auth.session_token=${rawToken}` })).status).toBe(401)
+    expect((await send(app, 'GET', '/api/projects', { headers: { Authorization: `Bearer ${rawToken}` } })).status).toBe(401)
+  })
+
   it('never takes the user from headers, the URL or the body', async () => {
     const { app } = setup()
     const { email: aliceEmail } = await signUp(app)
