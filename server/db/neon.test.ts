@@ -31,7 +31,9 @@ describe.skipIf(!enabled)('Neon development branch', () => {
 
   beforeAll(async () => {
     if (existsSync('.env')) process.loadEnvFile('.env')
-    const env = loadEnv(process.env)
+    // Tests never use the paid AI provider, whatever .env says; the key isn't kept around.
+    delete process.env.ANTHROPIC_API_KEY
+    const env = loadEnv({ ...process.env, AI_PROVIDER: 'mock' })
     if (env.DATABASE_PROVIDER !== 'neon') {
       throw new Error('test:neon needs DATABASE_PROVIDER=neon in .env')
     }
