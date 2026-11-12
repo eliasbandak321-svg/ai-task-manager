@@ -104,6 +104,13 @@ describe.skipIf(!enabled)('Neon development branch', () => {
     const chat = await ai.chat({ message: 'What should I focus on?' })
     expect(chat.message.source).toBe('mock')
 
+    // Dependencies (migration 0003): stored, cycles refused, effort computed.
+    const [first, second] = (await workspace.tasks.listTasks()).slice(0, 2)
+    await workspace.dependencies.set(first.id, { dependsOn: [] })
+    await workspace.dependencies.set(second.id, { dependsOn: [first.id] })
+    await expect(workspace.dependencies.set(first.id, { dependsOn: [second.id] })).rejects.toMatchObject({ code: 'DEPENDENCY_CYCLE' })
+    expect((await workspace.efforts())[first.id]).toMatchObject({ completedMinutes: 0 })
+
     // Another user sees none of it.
     const other = new Workspace(handle.db, await newUser())
     expect(await other.calendar.occurrences(now, new Date(now.getTime() + 8 * 86_400_000))).toEqual([])
