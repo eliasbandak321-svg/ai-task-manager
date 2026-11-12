@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server'
 import { openDatabase } from './db/client'
 import { assertSchemaUpToDate } from './db/migrations'
 import { databaseConfig, describeDatabase, loadEnv } from './env'
+import { describeAi } from './ai/createProvider'
 import { buildServer } from './server'
 
 /*
@@ -26,6 +27,7 @@ const { app, origins } = buildServer(env, db)
 const server = serve({ fetch: app.fetch, port: env.API_PORT, hostname: '127.0.0.1' }, ({ port }) => {
   // Never print DATABASE_URL: it contains the password.
   console.log(`API ready on http://127.0.0.1:${port}/api · database: ${describeDatabase(env)}`)
+  console.log(`AI: ${describeAi(env)}`)
   console.log(`Open the app at ${env.APP_ORIGIN} (also accepted: ${origins.slice(1).join(', ') || 'none'})`)
 })
 

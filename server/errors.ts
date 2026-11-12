@@ -20,6 +20,10 @@ export type ApiErrorCode =
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN_ORIGIN'
   | 'UNSAFE_REDIRECT'
+  | 'AI_LIMIT_REACHED'
+  | 'RATE_LIMITED'
+  | 'AI_UNAVAILABLE'
+  | 'AI_INVALID_OUTPUT'
   | 'INTERNAL_ERROR'
 
 export interface ApiErrorBody {
@@ -38,6 +42,11 @@ export const DOMAIN_ERROR_STATUS: Record<DomainErrorCode, ContentfulStatusCode> 
   SUBTASK_LIMIT_REACHED: 409,
   RESERVED_PROJECT_NAME: 400,
   INVALID_SUBTASK_ORDER: 400,
+  INVALID_OCCURRENCE: 400,
+  PROPOSAL_DECIDED: 409,
+  PROPOSAL_EXPIRED: 409,
+  PROPOSAL_STALE: 409,
+  SCHEDULE_CONFLICT: 409,
 }
 
 export class ApiError extends Error {
