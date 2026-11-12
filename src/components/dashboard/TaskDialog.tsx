@@ -24,11 +24,12 @@ import { Dialog } from '../ui/Dialog'
 import { Field } from '../ui/Field'
 import { controlClass } from '../ui/styles'
 import { TaskAiHelp } from '../workspace/TaskAiHelp'
+import { TaskPlanning } from '../workspace/TaskPlanning'
 import { SubtaskList } from './SubtaskList'
 
 type TaskDialogProps =
   | { mode: 'create'; defaultProjectId: string; projects: readonly Project[]; onClose: () => void }
-  | { mode: 'edit'; task: Task; subtasks: readonly Subtask[]; projects: readonly Project[]; onClose: () => void }
+  | { mode: 'edit'; task: Task; subtasks: readonly Subtask[]; allTasks: readonly Task[]; projects: readonly Project[]; onClose: () => void }
 
 interface FormValues {
   title: string
@@ -215,6 +216,7 @@ export function TaskDialog(props: TaskDialogProps) {
       </form>
 
       {props.mode === 'edit' && task && <SubtaskList task={task} subtasks={props.subtasks} />}
+      {props.mode === 'edit' && task && <TaskPlanning task={task} tasks={props.allTasks} />}
       {props.mode === 'edit' && task && <TaskAiHelp task={task} />}
 
       {formError && (

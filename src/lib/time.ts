@@ -1,24 +1,30 @@
-import type { EventCategory } from '../domain'
+import { isIsoDate, zonedParts, zonedRange, zonedToUtc, type EventCategory, type IsoDate } from '../domain'
 
 /*
-  Time presentation for the calendar (M9). Instants are stored in UTC; the calendar shows them
-  in the browser's time zone, the way people read their own calendar.
+  Time presentation (M9). Instants are stored in UTC and always shown in the user's time zone
+  from their settings — not the device's — so the calendar, the scheduler and every date in
+  the app agree, even when travelling or on a computer set to another zone.
 */
 
-/** "Mon, Mar 2, 09:00" in the browser's zone. */
-export function formatInstant(instant: string, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(instant))
+/** "Mon, Mar 2, 09:00" in the given time zone (the user's, from their settings). */
+export function formatInstant(instant: string, timeZone: string, locale?: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(new Date(instant))
 }
 
-/** "09:00". */
-export function formatClock(instant: string, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(instant))
+/** "09:00" in the given time zone. */
+export function formatClock(instant: string, timeZone: string, locale?: string): string {
+  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(new Date(instant))
 }
 
-/** "09:00–10:30" (or with dates when it spans days). */
-export function formatSpan(start: string, end: string, locale?: string): string {
-  const sameDay = new Date(start).toDateString() === new Date(end).toDateString()
-  return `${formatInstant(start, locale)}–${sameDay ? formatClock(end, locale) : formatInstant(end, locale)}`
+/** "Mon, Mar 2, 09:00–10:30" (with both dates when it spans days). */
+export function formatSpan(start: string, end: string, timeZone: string, locale?: string): string {
+  const sameDay = zonedParts(new Date(start), timeZone).date === zonedParts(new Date(end), timeZone).date
+  return `${formatInstant(start, timeZone, locale)}–${sameDay ? formatClock(end, timeZone, locale) : formatInstant(end, timeZone, locale)}`
+}
+
+/** "Monday, March 2" for the local day of an instant. */
+export function formatDayHeading(instant: string, timeZone: string, locale?: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'long', day: 'numeric', timeZone }).format(new Date(instant))
 }
 
 /** "1 h 30 min", "45 min", "2 h". */
@@ -30,18 +36,30 @@ export function formatMinutes(minutes: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`
 }
 
-/** The value for an <input type="datetime-local"> showing `instant` in the browser's zone. */
-export function toLocalInput(instant: string | Date): string {
-  const date = new Date(instant)
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+/** The value for an <input type="datetime-local"> showing `instant` as wall-clock time in `timeZone`. */
+export function toLocalInput(instant: string | Date, timeZone: string): string {
+  const { date, minutes } = zonedParts(new Date(instant), timeZone)
+  return `${date}T${minutesToClock(minutes)}`
 }
 
-/** The UTC instant of a datetime-local value (interpreted in the browser's zone), or null. */
-export function fromLocalInput(value: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+/** The UTC instant of a datetime-local value read as wall-clock time in `timeZone`, or null. */
+export function fromLocalInput(value: string, timeZone: string): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value)
+  if (!match || !isIsoDate(match[1])) return null
+  const minutes = Number(match[2]) * 60 + Number(match[3])
+  if (minutes >= 24 * 60) return null
+  return zonedToUtc(match[1], minutes, timeZone).toISOString()
+}
+
+/** [start of `from`, start of the day after `to`) in `timeZone`, as ISO instants. */
+export function zonedDayRange(from: IsoDate, to: IsoDate, timeZone: string): { from: string; to: string } {
+  const range = zonedRange(from, to, timeZone)
+  return { from: range.start.toISOString(), to: range.end.toISOString() }
+}
+
+/** The local date of an instant in `timeZone`. */
+export function zonedDate(instant: string, timeZone: string): IsoDate {
+  return zonedParts(new Date(instant), timeZone).date
 }
 
 /** "HH:MM" ↔ minutes since midnight, for working-hour fields. */

@@ -189,6 +189,7 @@ export function TasksPage() {
           mode="edit"
           task={openTask}
           subtasks={getTaskSubtasks(subtasks, openTask)}
+          allTasks={tasks}
           projects={projects}
           onClose={closeDialog}
         />

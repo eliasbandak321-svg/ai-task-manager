@@ -104,7 +104,7 @@ describe('assistant context', () => {
 
   it('drops operations that reference anything the model was not shown', () => {
     const task = makeTask({ projectId: project.id })
-    const occurrence: Occurrence = { eventId: ID, occurrenceStart: '', start: '2026-03-02T10:00:00.000Z', end: '2026-03-02T11:00:00.000Z', title: 'Standup', category: 'meeting', taskId: null, isRecurring: true, seriesId: null }
+    const occurrence: Occurrence = { eventId: ID, occurrenceStart: '', start: '2026-03-02T10:00:00.000Z', end: '2026-03-02T11:00:00.000Z', title: 'Standup', category: 'meeting', taskId: null, isRecurring: true, seriesId: null, sessionStatus: 'planned' }
     const context = buildAssistantContext({ projects: [project], tasks: [task], upcoming: [occurrence], prefs, now })
     const result = filterOperations(
       [

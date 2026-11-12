@@ -11,9 +11,9 @@ import { addDays, EVENT_CATEGORY_LABELS, getDeadlineStatus } from '../domain'
 import { useProjectsQuery, useTasksQuery } from '../hooks/queries'
 import { useNow } from '../hooks/useNow'
 import { useToday } from '../hooks/useToday'
-import { useCalendarQuery, useInsightsQuery, usePreferencesQuery, useProposalsQuery } from '../hooks/workspaceQueries'
+import { useCalendarQuery, useInsightsQuery, usePreferencesQuery, useProposalsQuery, useUserTimeZone } from '../hooks/workspaceQueries'
 import { dueLabel, errorMessage, pluralize } from '../lib/format'
-import { formatSpan } from '../lib/time'
+import { formatSpan, zonedDayRange } from '../lib/time'
 
 function Panel({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
@@ -38,12 +38,9 @@ export function OverviewPage() {
   const insightsQuery = useInsightsQuery()
   const preferencesQuery = usePreferencesQuery()
   const proposalsQuery = useProposalsQuery()
-  // Calendar from now to a week ahead (stable for the day, so the query key doesn't churn).
-  const range = useMemo(() => {
-    const from = new Date(`${today}T00:00:00`)
-    const to = new Date(`${addDays(today, 7)}T00:00:00`)
-    return { from: from.toISOString(), to: to.toISOString() }
-  }, [today])
+  const timeZone = useUserTimeZone()
+  // Today and the next 6 days in the user's zone (stable for the day: the query key doesn't churn).
+  const range = useMemo(() => zonedDayRange(today, addDays(today, 6), timeZone), [today, timeZone])
   const calendarQuery = useCalendarQuery(range.from, range.to)
 
   if (tasksQuery.isPending || projectsQuery.isPending) return <LoadingMessage label="Loading your dashboard…" />
@@ -116,7 +113,7 @@ export function OverviewPage() {
                   <span className="min-w-0">
                     <span className="block truncate text-ink">{occurrence.title}</span>
                     <span className="text-ink-muted">
-                      {formatSpan(occurrence.start, occurrence.end)} · {EVENT_CATEGORY_LABELS[occurrence.category]}
+                      {formatSpan(occurrence.start, occurrence.end, timeZone)} · {EVENT_CATEGORY_LABELS[occurrence.category]}
                     </span>
                   </span>
                 </li>

@@ -47,6 +47,11 @@ export function registerWorkspaceRoutes<E extends WorkspaceEnv>(app: Hono<E>): v
     return c.body(null, 204)
   })
 
+  // ---------- Dependencies and effort ----------
+  app.get('/dependencies', async (c) => c.json(await c.var.workspace.dependencies.list()))
+  app.put('/tasks/:id/dependencies', async (c) => c.json(await c.var.workspace.dependencies.set(c.req.param('id'), await body(c))))
+  app.get('/effort', async (c) => c.json(await c.var.workspace.efforts()))
+
   // ---------- Scheduling and proposals ----------
   app.post('/schedule/proposals', async (c) => c.json(await c.var.workspace.proposeSchedule(await body(c)), 201))
   app.get('/proposals', async (c) => c.json(await c.var.workspace.proposals.listPending()))

@@ -254,7 +254,7 @@ describe('dashboard: subtasks', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Move “Add charts” up' }))
     await waitFor(() =>
-      expect(within(dialog).getAllByRole('checkbox').map((box) => box.closest('label')?.textContent)).toEqual([
+      expect(within(within(dialog).getByRole('region', { name: 'Subtasks' })).getAllByRole('checkbox').map((box) => box.closest('label')?.textContent)).toEqual([
         'Add charts',
         'Draft outline',
       ]),

@@ -23,6 +23,8 @@ const DOMAIN_ERROR_CODES = new Set<string>([
   'PROPOSAL_EXPIRED',
   'PROPOSAL_STALE',
   'SCHEDULE_CONFLICT',
+  'DEPENDENCY_CYCLE',
+  'INVALID_SESSION_STATUS',
 ] satisfies DomainErrorCode[])
 
 /** Server errors whose message is written for people (AI outages and invalid AI output). */

@@ -55,7 +55,13 @@ export const schedulePayloadSchema = z.object({
   to: z.string(),
   items: z.array(scheduleItemSchema),
   unscheduled: z.array(
-    z.object({ taskId: idSchema, title: z.string(), reason: z.enum(['not_enough_time', 'deadline_passed']), missingMinutes: z.int() }),
+    z.object({
+      taskId: idSchema,
+      title: z.string(),
+      reason: z.enum(['not_enough_time', 'deadline_passed', 'blocked_by_dependency', 'dependency_cycle']),
+      missingMinutes: z.int(),
+      blockedBy: z.string().optional(),
+    }),
   ),
   /** Plain-language explanation of the result, computed from the numbers (not by AI). */
   explanation: z.array(z.string()),

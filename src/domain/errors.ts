@@ -17,7 +17,9 @@ export type DomainErrorCode =
   | 'PROPOSAL_DECIDED' // already approved or rejected (also stops double submissions)
   | 'PROPOSAL_EXPIRED'
   | 'PROPOSAL_STALE' // the data it was based on has changed since
-  | 'SCHEDULE_CONFLICT' // a proposed session now overlaps something on the calendar
+  | 'SCHEDULE_CONFLICT'
+  | 'DEPENDENCY_CYCLE' // dependencies may never form a loop
+  | 'INVALID_SESSION_STATUS' // e.g. marking a session done before it started // a proposed session now overlaps something on the calendar
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode

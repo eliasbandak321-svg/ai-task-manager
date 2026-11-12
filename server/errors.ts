@@ -47,6 +47,8 @@ export const DOMAIN_ERROR_STATUS: Record<DomainErrorCode, ContentfulStatusCode> 
   PROPOSAL_EXPIRED: 409,
   PROPOSAL_STALE: 409,
   SCHEDULE_CONFLICT: 409,
+  DEPENDENCY_CYCLE: 400,
+  INVALID_SESSION_STATUS: 400,
 }
 
 export class ApiError extends Error {

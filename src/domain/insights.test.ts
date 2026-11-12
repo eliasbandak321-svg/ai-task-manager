@@ -13,7 +13,7 @@ const NOW = zonedToUtc('2026-03-02', 8 * 60, TZ)
 function session(taskId: string | null, date: string, startHour: number, hours: number, category: Occurrence['category'] = 'work_session'): Occurrence {
   const start = zonedToUtc(date, startHour * 60, TZ).toISOString()
   const end = zonedToUtc(date, (startHour + hours) * 60, TZ).toISOString()
-  return { eventId: 'e', occurrenceStart: start, start, end, title: 'Session', category, taskId, isRecurring: false, seriesId: null }
+  return { eventId: 'e', occurrenceStart: start, start, end, title: 'Session', category, taskId, isRecurring: false, seriesId: null, sessionStatus: 'planned' }
 }
 
 describe('computeInsights', () => {

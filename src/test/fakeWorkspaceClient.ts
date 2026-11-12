@@ -13,6 +13,8 @@ import type {
 } from '../data/workspaceClient'
 import {
   computeInsights,
+  computeTaskEffort,
+  planDependencies,
   createEventInputSchema,
   defaultPreferences,
   DomainError,
@@ -26,6 +28,7 @@ import {
   type Proposal,
   type ProposalPayload,
   type TaskAssistKind,
+  type TaskDependency,
 } from '../domain'
 
 /*
@@ -50,6 +53,7 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
   const proposals: Proposal[] = []
   const conversations: (Conversation & { messages: ChatMessage[] })[] = []
   const calls: { method: string; args: unknown[] }[] = []
+  let dependencies: TaskDependency[] = []
 
   const record = (method: string, ...args: unknown[]) => calls.push({ method, args })
 
@@ -93,7 +97,7 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
       record('createEvent', input)
       const parsed = createEventInputSchema.parse(input)
       const stamp = now().toISOString()
-      const event: CalendarEvent = { id: nextId(), userId: 'fake', ...parsed, excludedStarts: [], seriesId: null, originalStart: null, createdAt: stamp, updatedAt: stamp }
+      const event: CalendarEvent = { id: nextId(), userId: 'fake', ...parsed, excludedStarts: [], seriesId: null, originalStart: null, sessionStatus: 'planned', createdAt: stamp, updatedAt: stamp }
       events.push(event)
       return event
     },
@@ -113,12 +117,30 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
       events.splice(index, 1)
     },
 
+    async listDependencies() {
+      return [...dependencies]
+    },
+
+    async setDependencies(taskId: string, dependsOn: string[]) {
+      record('setDependencies', taskId, dependsOn)
+      const known = new Set((await repository.listTasks()).map((task) => task.id))
+      const next = planDependencies(taskId, dependsOn, dependencies, known)
+      dependencies = [...dependencies.filter((edge) => edge.taskId !== taskId), ...next]
+      return next
+    },
+
+    async efforts() {
+      const tasks = await repository.listTasks()
+      const sessions = expandEvents(events, new Date(0), new Date(now().getTime() + 90 * 86_400_000))
+      return Object.fromEntries(tasks.map((task) => [task.id, computeTaskEffort(task, sessions, now())]))
+    },
+
     async proposeSchedule(request: ScheduleRequest) {
       record('proposeSchedule', request)
       const tasks = (await repository.listTasks()).filter((task) => task.status !== 'done' && (!request.taskIds || request.taskIds.includes(task.id)))
       const range = zonedRange(request.from, request.to, preferences.timeZone)
       const busy = expandEvents(events, now(), range.end).map((o) => ({ start: new Date(o.start), end: new Date(o.end), category: o.category }))
-      const result = scheduleTasks({ tasks: tasks.map((task) => ({ ...task, scheduledMinutes: 0 })), busy, prefs: preferences, from: request.from, to: request.to, now: now() })
+      const result = scheduleTasks({ tasks: tasks.map((task) => ({ ...task, completedMinutes: 0, plannedMinutes: 0, plannedUntil: null, dependsOn: [] })), busy, prefs: preferences, from: request.from, to: request.to, now: now() })
       const title = new Map(tasks.map((task) => [task.id, task.title]))
       return propose(
         {

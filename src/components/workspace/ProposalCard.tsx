@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowRight, Check, X } from 'lucide-react'
 import { useId, useState } from 'react'
 import { isDomainError, type Proposal, type ScheduleItem } from '../../domain'
-import { useApplyProposal, useRejectProposal } from '../../hooks/workspaceQueries'
+import { useApplyProposal, useRejectProposal, useUserTimeZone } from '../../hooks/workspaceQueries'
 import { errorMessage } from '../../lib/format'
 import { formatInstant, formatSpan } from '../../lib/time'
 import { useToast } from '../../hooks/toast'
@@ -26,21 +26,31 @@ interface Row {
   before?: string
 }
 
-function itemLabel(item: ScheduleItem): Row {
-  if (item.type === 'create') return { text: `New session: ${item.title}`, detail: formatSpan(item.startAt, item.endAt) }
-  if (item.type === 'move') return { text: `Move: ${item.title}`, before: formatSpan(item.fromStartAt, item.fromEndAt), detail: formatSpan(item.startAt, item.endAt) }
-  return { text: `Remove: ${item.title}`, detail: formatSpan(item.fromStartAt, item.fromEndAt) }
+function itemLabel(item: ScheduleItem, timeZone: string): Row {
+  if (item.type === 'create') return { text: `New session: ${item.title}`, detail: formatSpan(item.startAt, item.endAt, timeZone) }
+  if (item.type === 'move') {
+    return { text: `Move: ${item.title}`, before: formatSpan(item.fromStartAt, item.fromEndAt, timeZone), detail: formatSpan(item.startAt, item.endAt, timeZone) }
+  }
+  return { text: `Remove: ${item.title}`, detail: formatSpan(item.fromStartAt, item.fromEndAt, timeZone) }
 }
+
+const UNSCHEDULED_TEXT = {
+  not_enough_time: (minutes: number) => `${Math.round(minutes)} min missing`,
+  deadline_passed: () => 'deadline has passed',
+  blocked_by_dependency: () => 'waits for a prerequisite that doesn’t fit',
+  dependency_cycle: () => 'circular dependency',
+} as const
 
 /**
  * A suggested change waiting for the user's decision. Nothing happens until "Approve";
  * individual items can be left out. The server re-checks everything when approving.
  */
 export function ProposalCard({ proposal, title, onDecided, onRefresh }: ProposalCardProps) {
+  const timeZone = useUserTimeZone()
   const headingId = useId()
   const payload = proposal.payload
   const rows: Row[] =
-    payload.kind === 'schedule' ? payload.items.map(itemLabel) : payload.kind === 'changes' ? payload.labels.map((text) => ({ text })) : []
+    payload.kind === 'schedule' ? payload.items.map((item) => itemLabel(item, timeZone)) : payload.kind === 'changes' ? payload.labels.map((text) => ({ text })) : []
   const [included, setIncluded] = useState<boolean[]>(() => rows.map(() => true))
   const [problem, setProblem] = useState<{ message: string; stale: boolean } | null>(null)
   const apply = useApplyProposal()
@@ -137,7 +147,7 @@ export function ProposalCard({ proposal, title, onDecided, onRefresh }: Proposal
           <ul className="mt-1 space-y-0.5 text-ink-muted">
             {payload.unscheduled.map((entry) => (
               <li key={entry.taskId}>
-                {entry.title}: {entry.reason === 'deadline_passed' ? 'deadline has passed' : `${Math.round(entry.missingMinutes)} min missing`}
+                {entry.title}: {UNSCHEDULED_TEXT[entry.reason](entry.missingMinutes)}
               </li>
             ))}
           </ul>
@@ -158,7 +168,7 @@ export function ProposalCard({ proposal, title, onDecided, onRefresh }: Proposal
       {decided ? (
         <p className="mt-3 text-sm text-ink-muted">
           {proposal.status === 'applied' ? 'Applied' : 'Dismissed'}
-          {proposal.decidedAt ? ` · ${formatInstant(proposal.decidedAt)}` : ''}
+          {proposal.decidedAt ? ` · ${formatInstant(proposal.decidedAt, timeZone)}` : ''}
         </p>
       ) : (
         rows.length > 0 && (

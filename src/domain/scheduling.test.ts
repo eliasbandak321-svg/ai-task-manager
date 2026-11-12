@@ -15,7 +15,10 @@ function task(overrides: Partial<SchedulableTask> = {}): SchedulableTask {
     dueDate: null,
     createdAt: '2026-03-01T00:00:00.000Z',
     estimatedMinutes: 60,
-    scheduledMinutes: 0,
+    completedMinutes: 0,
+    plannedMinutes: 0,
+    plannedUntil: null,
+    dependsOn: [],
     ...overrides,
   }
 }
@@ -131,9 +134,9 @@ describe('scheduleTasks', () => {
     expect(result.freeMinutes).toBe(5 * 8 * 60)
   })
 
-  it('subtracts work that is already scheduled, and flags missing estimates', () => {
+  it('schedules only remaining effort (estimate − completed − planned), and flags missing estimates', () => {
     const result = scheduleTasks({
-      tasks: [task({ id: 'half', estimatedMinutes: 120, scheduledMinutes: 90 }), task({ id: 'unknown', estimatedMinutes: null })],
+      tasks: [task({ id: 'half', estimatedMinutes: 120, completedMinutes: 60, plannedMinutes: 30 }), task({ id: 'unknown', estimatedMinutes: null })],
       busy: [],
       prefs,
       from: '2026-03-02',
@@ -148,6 +151,75 @@ describe('scheduleTasks', () => {
     const midday = zonedToUtc('2026-03-02', 13 * 60 + 7, TZ)
     const result = scheduleTasks({ tasks: [task()], busy: [], prefs, from: '2026-02-20', to: '2026-03-02', now: midday })
     expect(sessionsOf(result)).toEqual(['task 2026-03-02 13:07-14:07'])
+  })
+})
+
+describe('scheduleTasks with dependencies', () => {
+  const run = (tasks: SchedulableTask[], overrides: Partial<Parameters<typeof scheduleTasks>[0]> = {}) =>
+    scheduleTasks({ tasks, busy: [], prefs, from: '2026-03-02', to: '2026-03-06', now: NOW, ...overrides })
+
+  it('never schedules a task before its prerequisites are finished', () => {
+    // "write" is urgent and high priority, but needs "research" first.
+    const result = run([
+      task({ id: 'write', priority: 'high', dueDate: '2026-03-03', dependsOn: ['research'], estimatedMinutes: 60 }),
+      task({ id: 'research', priority: 'low', estimatedMinutes: 120 }),
+    ])
+    expect(sessionsOf(result)).toEqual([
+      'research 2026-03-02 09:00-10:00',
+      'research 2026-03-02 10:00-11:00',
+      'write 2026-03-02 11:00-12:00',
+    ])
+  })
+
+  it('makes prerequisites as urgent as the tasks that depend on them', () => {
+    const result = run([
+      task({ id: 'other', dueDate: '2026-03-04', priority: 'high' }),
+      task({ id: 'prep', dueDate: null, priority: 'low' }),
+      task({ id: 'exam', dueDate: '2026-03-03', dependsOn: ['prep'] }),
+    ])
+    expect(result.sessions.map((s) => s.taskId)).toEqual(['prep', 'exam', 'other'])
+  })
+
+  it('waits for prerequisite sessions that are already planned', () => {
+    const plannedUntil = zonedToUtc('2026-03-02', 14 * 60, TZ)
+    const result = run([
+      task({ id: 'base', estimatedMinutes: 60, plannedMinutes: 60, plannedUntil }),
+      task({ id: 'next', dependsOn: ['base'] }),
+    ])
+    expect(sessionsOf(result)).toEqual(['next 2026-03-02 14:00-15:00'])
+  })
+
+  it('keeps the time before a dependency-constrained session free for other tasks', () => {
+    const plannedUntil = zonedToUtc('2026-03-02', 11 * 60, TZ)
+    const result = run([
+      task({ id: 'base', estimatedMinutes: 60, plannedMinutes: 60, plannedUntil }),
+      task({ id: 'next', dependsOn: ['base'], dueDate: '2026-03-02' }),
+      task({ id: 'free', dueDate: '2026-03-05', estimatedMinutes: 120 }),
+    ])
+    expect(sessionsOf(result)).toEqual(['free 2026-03-02 09:00-10:00', 'free 2026-03-02 10:00-11:00', 'next 2026-03-02 11:00-12:00'])
+  })
+
+  it('reports dependents of an unschedulable task as blocked, and cycles as cycles', () => {
+    const blocked = run([task({ id: 'huge', estimatedMinutes: 6000 }), task({ id: 'after', dependsOn: ['huge'] })])
+    expect(blocked.unscheduled).toContainEqual({ taskId: 'after', reason: 'blocked_by_dependency', missingMinutes: 60, blockedBy: 'huge' })
+    expect(blocked.sessions.every((s) => s.taskId === 'huge')).toBe(true)
+
+    const cyclic = run([task({ id: 'a', dependsOn: ['b'] }), task({ id: 'b', dependsOn: ['a'] }), task({ id: 'c' })])
+    expect(cyclic.unscheduled.map((u) => [u.taskId, u.reason])).toEqual([
+      ['a', 'dependency_cycle'],
+      ['b', 'dependency_cycle'],
+    ])
+    expect(sessionsOf(cyclic)).toEqual(['c 2026-03-02 09:00-10:00'])
+  })
+
+  it('ignores prerequisites outside the set (done tasks)', () => {
+    expect(sessionsOf(run([task({ id: 'x', dependsOn: ['finished-elsewhere'] })]))).toEqual(['x 2026-03-02 09:00-10:00'])
+  })
+
+  it('does not overschedule: completed and planned work count, missed work does not', () => {
+    const done = run([task({ id: 'done', estimatedMinutes: 120, completedMinutes: 120 })])
+    expect(done.sessions).toEqual([])
+    expect(done.requestedMinutes).toBe(0)
   })
 })
 

@@ -7,6 +7,7 @@ import {
   isoDateSchema,
   preferencesSchema,
   proposalSchema,
+  SESSION_STATUSES,
   timestampSchema,
   type ApplyProposalInput,
   type CalendarEvent,
@@ -17,6 +18,8 @@ import {
   type Preferences,
   type Proposal,
   type TaskAssistKind,
+  type TaskDependency,
+  type TaskEffort,
   type UpdateEventInput,
 } from '../domain'
 import { createTransport, type HttpTransportOptions, type Request } from './httpTransport'
@@ -44,6 +47,7 @@ const occurrenceSchema = z.object({
   taskId: idSchema.nullable(),
   isRecurring: z.boolean(),
   seriesId: idSchema.nullable(),
+  sessionStatus: z.enum(SESSION_STATUSES),
 })
 
 const calendarRangeSchema = z.object({ events: z.array(calendarEventSchema), occurrences: z.array(occurrenceSchema) })
@@ -75,6 +79,16 @@ const insightsSchema = z.object({
       date: isoDateSchema.optional(),
     }),
   ),
+})
+
+const dependencySchema = z.object({ taskId: idSchema, dependsOnId: idSchema })
+const effortSchema = z.object({
+  estimatedMinutes: z.int().nullable(),
+  completedMinutes: z.number(),
+  plannedMinutes: z.number(),
+  missedMinutes: z.number(),
+  remainingMinutes: z.number().nullable(),
+  plannedUntil: timestampSchema.nullable(),
 })
 
 const aiStatusSchema = z.object({
@@ -135,6 +149,10 @@ export interface WorkspaceClient {
   updateEvent(id: string, change: EventChange): Promise<CalendarEvent>
   deleteEvent(id: string, scope?: EditScope, occurrenceStart?: string | null): Promise<void>
 
+  listDependencies(): Promise<TaskDependency[]>
+  setDependencies(taskId: string, dependsOn: string[]): Promise<TaskDependency[]>
+  efforts(): Promise<Record<string, TaskEffort>>
+
   proposeSchedule(request: ScheduleRequest): Promise<Proposal>
   listProposals(): Promise<Proposal[]>
   applyProposal(id: string, input?: ApplyProposalInput): Promise<Proposal>
@@ -183,6 +201,18 @@ export class HttpWorkspaceClient implements WorkspaceClient {
   deleteEvent(eventId: string, scope: EditScope = 'series', occurrenceStart: string | null = null) {
     const query = new URLSearchParams({ scope, ...(occurrenceStart ? { occurrenceStart } : {}) })
     return this.request('DELETE', `/calendar/events/${id(eventId)}?${query}`, null)
+  }
+
+  listDependencies() {
+    return this.request('GET', '/dependencies', z.array(dependencySchema))
+  }
+
+  setDependencies(taskId: string, dependsOn: string[]) {
+    return this.request('PUT', `/tasks/${id(taskId)}/dependencies`, z.array(dependencySchema), { dependsOn })
+  }
+
+  efforts() {
+    return this.request('GET', '/effort', z.record(z.string(), effortSchema))
   }
 
   proposeSchedule(request: ScheduleRequest) {

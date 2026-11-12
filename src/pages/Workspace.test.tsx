@@ -20,10 +20,15 @@ function LocationDisplay() {
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
 }
 
-async function renderWorkspace(path: string, seed?: (repository: LocalRepository) => Promise<void>) {
+async function renderWorkspace(
+  path: string,
+  seed?: (repository: LocalRepository) => Promise<void>,
+  setup?: (workspace: ReturnType<typeof createFakeWorkspaceClient>) => Promise<void>,
+) {
   const repository = new LocalRepository({ storage: createMemoryStorage() })
   await seed?.(repository)
   const workspace = createFakeWorkspaceClient(repository)
+  await setup?.(workspace)
   const user = userEvent.setup({ delay: null })
   render(
     <MemoryRouter initialEntries={[path]}>
@@ -186,5 +191,67 @@ describe('calendar', () => {
     await waitFor(() => expect(workspace.calls.some((call) => call.method === 'proposeSchedule')).toBe(true))
     expect(await screen.findByRole('heading', { name: 'Proposed schedule' })).toBeInTheDocument()
     expect(screen.getByText('Scheduler')).toBeInTheDocument()
+  })
+})
+
+describe('task planning: dependencies and effort', () => {
+  it('saves prerequisites, refuses circular ones, and shows effort', async () => {
+    const { user, workspace } = await renderWorkspace('/app/projects', async (repo) => {
+      const [inbox] = await repo.listProjects()
+      await repo.createTask({ projectId: inbox.id, title: 'Research', estimatedMinutes: 120 })
+      await repo.createTask({ projectId: inbox.id, title: 'Write', estimatedMinutes: 60 })
+    })
+    await user.click(await screen.findByRole('button', { name: 'Write' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Task details' })
+    const planning = within(dialog).getByRole('region', { name: 'Planning' })
+    expect((await within(planning).findByText('Estimated')).nextElementSibling).toHaveTextContent('1 h')
+    expect(within(planning).getByText('Remaining').nextElementSibling).toHaveTextContent('1 h')
+    await user.click(within(planning).getByRole('checkbox', { name: 'Research' }))
+    await user.click(within(planning).getByRole('button', { name: 'Save dependencies' }))
+    await waitFor(async () => expect(await workspace.listDependencies()).toHaveLength(1))
+    await user.click(within(dialog).getByRole('button', { name: 'Close dialog' }))
+
+    await user.click(screen.getByRole('button', { name: 'Research' }))
+    dialog = await screen.findByRole('dialog', { name: 'Task details' })
+    const other = within(dialog).getByRole('region', { name: 'Planning' })
+    await user.click(within(other).getByRole('checkbox', { name: 'Write' }))
+    await user.click(within(other).getByRole('button', { name: 'Save dependencies' }))
+    expect(await within(other).findByRole('alert')).toHaveTextContent(/circular dependency/)
+    expect(await workspace.listDependencies()).toHaveLength(1)
+  })
+})
+
+describe('time zone from settings', () => {
+  it('shows calendar times in the saved zone, not the device zone, and marks sessions done', async () => {
+    // A session that started an hour ago, for a task, in a user set to Tokyo.
+    const start = new Date(Date.now() - 3_600_000)
+    start.setUTCSeconds(0, 0)
+    let taskId = ''
+    const { user, workspace } = await renderWorkspace(
+      '/app/calendar',
+      async (repo) => {
+        const [inbox] = await repo.listProjects()
+        taskId = (await repo.createTask({ projectId: inbox.id, title: 'Essay' })).id
+      },
+      async (client) => {
+        const { preferences } = await client.getPreferences('UTC')
+        await client.savePreferences({ ...preferences, timeZone: 'Asia/Tokyo' })
+        await client.createEvent({
+          title: 'Essay session',
+          category: 'work_session',
+          startAt: start.toISOString(),
+          endAt: new Date(start.getTime() + 30 * 60_000).toISOString(),
+          timeZone: 'Asia/Tokyo',
+          taskId,
+        })
+      },
+    )
+    expect(await screen.findByText('Asia/Tokyo')).toBeInTheDocument()
+    const tokyo = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Tokyo' }).format(start)
+    const agenda = screen.getByRole('region', { name: 'Agenda' })
+    expect(await within(agenda).findByText(new RegExp(`^${tokyo}–`))).toBeInTheDocument()
+
+    await user.click(within(agenda).getByRole('button', { name: /^Mark Essay session at .* as done$/ }))
+    await waitFor(() => expect(workspace.events[0].sessionStatus).toBe('completed'))
   })
 })

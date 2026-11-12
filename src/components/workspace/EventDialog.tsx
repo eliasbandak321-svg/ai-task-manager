@@ -8,9 +8,10 @@ import {
   type EventCategory,
   type Recurrence,
   type Task,
+  zonedParts,
 } from '../../domain'
 import { useToast } from '../../hooks/toast'
-import { browserTimeZone, useCreateEvent, useDeleteEvent, useUpdateEvent } from '../../hooks/workspaceQueries'
+import { useCreateEvent, useDeleteEvent, useUpdateEvent, useUserTimeZone } from '../../hooks/workspaceQueries'
 import { errorMessage } from '../../lib/format'
 import { fromLocalInput, toLocalInput } from '../../lib/time'
 import { Button } from '../ui/Button'
@@ -50,17 +51,19 @@ const SCOPE_LABELS: Record<EditScope, string> = {
  * applies to this occurrence, this and the following ones, or the whole series.
  */
 export function EventDialog({ state, tasks, onClose }: EventDialogProps) {
+  // Times are entered and shown in the user's time zone (settings), not the device's.
+  const timeZone = useUserTimeZone()
   const existing = state.mode === 'edit' ? state.event : null
   const recurring = existing?.recurrence ?? null
   const [title, setTitle] = useState(existing?.title ?? (state.mode === 'create' ? (state.title ?? '') : ''))
   const [description, setDescription] = useState(existing?.description ?? '')
   const [category, setCategory] = useState<EventCategory>(existing?.category ?? (state.mode === 'create' ? (state.category ?? 'work_session') : 'other'))
-  const [start, setStart] = useState(toLocalInput(state.mode === 'edit' ? state.occurrenceStart : state.start))
-  const [end, setEnd] = useState(toLocalInput(state.mode === 'edit' ? state.occurrenceEnd : state.end))
+  const [start, setStart] = useState(toLocalInput(state.mode === 'edit' ? state.occurrenceStart : state.start, timeZone))
+  const [end, setEnd] = useState(toLocalInput(state.mode === 'edit' ? state.occurrenceEnd : state.end, timeZone))
   const [taskId, setTaskId] = useState<string>(existing ? (existing.taskId ?? '') : state.mode === 'create' ? (state.taskId ?? '') : '')
   const [repeat, setRepeat] = useState<Repeat>(recurring?.freq ?? 'none')
   const [interval, setRepeatInterval] = useState(recurring?.interval ?? 1)
-  const [weekdays, setWeekdays] = useState<number[]>(recurring?.byWeekday ?? [new Date(state.mode === 'edit' ? state.occurrenceStart : state.start).getDay()])
+  const [weekdays, setWeekdays] = useState<number[]>(recurring?.byWeekday ?? [zonedParts(new Date(state.mode === 'edit' ? state.occurrenceStart : state.start), timeZone).weekday])
   const [ends, setEnds] = useState<Ends>(recurring?.until ? 'until' : recurring?.count ? 'count' : 'never')
   const [until, setUntil] = useState(recurring?.until ?? '')
   const [count, setCount] = useState(recurring?.count ?? 10)
@@ -87,8 +90,8 @@ export function EventDialog({ state, tasks, onClose }: EventDialogProps) {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const startAt = fromLocalInput(start)
-    const endAt = fromLocalInput(end)
+    const startAt = fromLocalInput(start, timeZone)
+    const endAt = fromLocalInput(end, timeZone)
     if (!startAt || !endAt) {
       setError('Enter a valid start and end.')
       return
@@ -99,7 +102,8 @@ export function EventDialog({ state, tasks, onClose }: EventDialogProps) {
       category,
       startAt,
       endAt,
-      timeZone: existing?.timeZone ?? browserTimeZone(),
+      // A repeating event keeps the zone it repeats in; new events use the user's zone.
+      timeZone: existing?.timeZone ?? timeZone,
       taskId: taskId || null,
       recurrence: canRepeat ? recurrence() : null,
     }

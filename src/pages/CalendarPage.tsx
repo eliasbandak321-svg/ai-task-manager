@@ -1,4 +1,4 @@
-import { CalendarPlus, Pencil, RefreshCcw, Wand2 } from 'lucide-react'
+import { CalendarPlus, Check, Pencil, RefreshCcw, Wand2 } from 'lucide-react'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import type { TimeChange } from '../components/workspace/CalendarView'
 import { EventDialog, type EventDialogState } from '../components/workspace/EventDialog'
@@ -7,9 +7,10 @@ import { ScopeDialog } from '../components/workspace/ScopeDialog'
 import { Button } from '../components/ui/Button'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
 import { LoadingMessage } from '../components/ui/LoadingMessage'
-import { addDays, EVENT_CATEGORY_LABELS, type EditScope, type Occurrence, type Proposal } from '../domain'
+import { addDays, EVENT_CATEGORY_LABELS, WORK_CATEGORIES, weekdayOfDate, zonedParts, zonedToUtc, type EditScope, type Occurrence, type Proposal, type SessionStatus } from '../domain'
 import { useTasksQuery } from '../hooks/queries'
 import { useToast } from '../hooks/toast'
+import { useNow } from '../hooks/useNow'
 import { useToday } from '../hooks/useToday'
 import {
   browserTimeZone,
@@ -19,32 +20,27 @@ import {
   useProposalsQuery,
   useProposeSchedule,
   useUpdateEvent,
+  useUserTimeZone,
 } from '../hooks/workspaceQueries'
 import { errorMessage } from '../lib/format'
-import { CATEGORY_CLASSES, formatClock, formatMinutes } from '../lib/time'
+import { CATEGORY_CLASSES, formatClock, formatDayHeading, formatMinutes, zonedDate, zonedDayRange } from '../lib/time'
 
 // The calendar library is only downloaded when this page opens.
 const CalendarView = lazy(() => import('../components/workspace/CalendarView'))
 
 const NONE: never[] = []
 
-/** Monday 00:00 of the current week until the next Monday (local), as the initial range. */
-function currentWeek(today: string): { from: string; to: string } {
-  const date = new Date(`${today}T00:00:00`)
-  const monday = new Date(date)
-  monday.setDate(date.getDate() - ((date.getDay() + 6) % 7))
-  const next = new Date(monday)
-  next.setDate(monday.getDate() + 7)
-  return { from: monday.toISOString(), to: next.toISOString() }
-}
-
-function dayHeading(instant: string): string {
-  return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(instant))
+/** Monday 00:00 of the current week until the next Monday, in the user's zone (initial range). */
+function currentWeek(today: string, timeZone: string): { from: string; to: string } {
+  const monday = addDays(today, -((weekdayOfDate(today) + 6) % 7))
+  return zonedDayRange(monday, addDays(monday, 6), timeZone)
 }
 
 export function CalendarPage() {
   const today = useToday()
-  const [range, setRange] = useState(() => currentWeek(today))
+  const timeZone = useUserTimeZone()
+  const now = useNow()
+  const [range, setRange] = useState(() => currentWeek(today, timeZone))
   const [dialog, setDialog] = useState<EventDialogState | null>(null)
   const [pendingChange, setPendingChange] = useState<TimeChange | null>(null)
   const [latestProposal, setLatestProposal] = useState<Proposal | null>(null)
@@ -65,16 +61,16 @@ export function CalendarPage() {
     .map((id) => tasks.find((task) => task.id === id))
     .filter((task) => task !== undefined)
   const pendingSchedules = (proposalsQuery.data ?? NONE).filter((proposal) => proposal.kind === 'schedule' && proposal.id !== latestProposal?.id)
-  const zoneMismatch = preferencesQuery.data?.saved && preferencesQuery.data.preferences.timeZone !== browserTimeZone()
+  const deviceZone = browserTimeZone()
 
   const byDay = useMemo(() => {
     const groups = new Map<string, Occurrence[]>()
     for (const occurrence of occurrences) {
-      const day = new Date(occurrence.start).toDateString()
+      const day = zonedDate(occurrence.start, timeZone)
       groups.set(day, [...(groups.get(day) ?? []), occurrence])
     }
     return [...groups.values()]
-  }, [occurrences])
+  }, [occurrences, timeZone])
 
   function openOccurrence(occurrence: Occurrence) {
     const event = events.find((candidate) => candidate.id === occurrence.eventId)
@@ -82,10 +78,27 @@ export function CalendarPage() {
   }
 
   function newEvent() {
-    const start = new Date()
-    start.setMinutes(0, 0, 0)
-    start.setHours(start.getHours() + 1)
+    // The next full hour in the user's zone.
+    const now = zonedParts(new Date(), timeZone)
+    const start = zonedToUtc(now.date, (Math.floor(now.minutes / 60) + 1) * 60, timeZone)
     setDialog({ mode: 'create', start: start.toISOString(), end: new Date(start.getTime() + 3_600_000).toISOString() })
+  }
+
+  /** Work sessions for a task can be marked once they've started. */
+  const isTrackable = (occurrence: Occurrence) =>
+    occurrence.taskId !== null && WORK_CATEGORIES.includes(occurrence.category) && occurrence.start <= now
+
+  async function setStatus(occurrence: Occurrence, sessionStatus: SessionStatus) {
+    try {
+      await updateEvent.mutateAsync({
+        id: occurrence.eventId,
+        // An occurrence of a repeating session is separated from its series first.
+        change: { scope: 'occurrence', occurrenceStart: occurrence.occurrenceStart, changes: { sessionStatus } },
+      })
+      showToast(sessionStatus === 'completed' ? 'Marked as done' : sessionStatus === 'skipped' ? 'Marked as skipped' : 'Status cleared')
+    } catch (error) {
+      showToast(errorMessage(error), 'error')
+    }
   }
 
   async function saveTimeChange(change: TimeChange, scope?: EditScope) {
@@ -128,11 +141,11 @@ export function CalendarPage() {
         </Button>
       </div>
 
-      {zoneMismatch && (
-        <p className="rounded-control border border-priority-medium/50 p-3 text-sm text-ink">
-          Times are shown in your browser's time zone ({browserTimeZone()}). Your settings use {preferencesQuery.data?.preferences.timeZone}, which the scheduler plans in.
-        </p>
-      )}
+      <p className="text-sm text-ink-muted">
+        Times are shown in <strong className="font-medium text-ink">{timeZone}</strong>
+        {preferencesQuery.data?.saved ? ' (your settings)' : ' (your device; set your time zone in Settings)'}.
+        {timeZone !== deviceZone && ` Your device is set to ${deviceZone}.`}
+      </p>
 
       {calendarQuery.isError && (
         <ErrorMessage title="The calendar couldn't be loaded" message={errorMessage(calendarQuery.error)} onRetry={() => calendarQuery.refetch()} />
@@ -141,6 +154,7 @@ export function CalendarPage() {
       <div className="rounded-card border border-line bg-surface p-3 sm:p-4">
         <Suspense fallback={<LoadingMessage label="Loading calendar…" />}>
           <CalendarView
+            timeZone={timeZone}
             occurrences={occurrences}
             onRangeChange={(from, to) => setRange((current) => (current.from === from && current.to === to ? current : { from, to }))}
             onSelectSlot={(start, end) => setDialog({ mode: 'create', start, end })}
@@ -164,12 +178,12 @@ export function CalendarPage() {
             <div className="mt-3 space-y-4">
               {byDay.map((day) => (
                 <div key={day[0].start}>
-                  <h3 className="text-sm font-semibold text-ink">{dayHeading(day[0].start)}</h3>
+                  <h3 className="text-sm font-semibold text-ink">{formatDayHeading(day[0].start, timeZone)}</h3>
                   <ul className="mt-2 space-y-2">
                     {day.map((occurrence) => (
                       <li key={`${occurrence.eventId}-${occurrence.occurrenceStart}`} className="flex items-center gap-3 rounded-control border border-line p-2 pl-3 text-sm">
                         <span className="w-24 shrink-0 tabular-nums text-ink-muted">
-                          {formatClock(occurrence.start)}–{formatClock(occurrence.end)}
+                          {formatClock(occurrence.start, timeZone)}–{formatClock(occurrence.end, timeZone)}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-ink">
@@ -179,9 +193,36 @@ export function CalendarPage() {
                           <span className="flex flex-wrap items-center gap-2 text-xs">
                             <span className={`rounded-full px-2 py-0.5 ${CATEGORY_CLASSES[occurrence.category]}`}>{EVENT_CATEGORY_LABELS[occurrence.category]}</span>
                             {occurrence.taskId && <span className="text-ink-muted">Task: {taskTitle.get(occurrence.taskId) ?? 'linked task'}</span>}
+                            {occurrence.sessionStatus !== 'planned' && (
+                              <span className="rounded-full border border-line-strong px-2 py-0.5 text-ink">{occurrence.sessionStatus === 'completed' ? '✓ Done' : 'Skipped'}</span>
+                            )}
                           </span>
                         </span>
-                        <Button variant="ghost" iconOnly aria-label={`Edit ${occurrence.title} at ${formatClock(occurrence.start)}`} onClick={() => openOccurrence(occurrence)}>
+                        {isTrackable(occurrence) &&
+                          (occurrence.sessionStatus === 'planned' ? (
+                            <span className="flex shrink-0 gap-1">
+                              <Button
+                                className="px-3"
+                                aria-label={`Mark ${occurrence.title} at ${formatClock(occurrence.start, timeZone)} as done`}
+                                onClick={() => setStatus(occurrence, 'completed')}
+                              >
+                                <Check aria-hidden="true" className="size-4" /> Done
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="px-3"
+                                aria-label={`Mark ${occurrence.title} at ${formatClock(occurrence.start, timeZone)} as skipped`}
+                                onClick={() => setStatus(occurrence, 'skipped')}
+                              >
+                                Skipped
+                              </Button>
+                            </span>
+                          ) : (
+                            <Button variant="ghost" className="px-3" onClick={() => setStatus(occurrence, 'planned')}>
+                              Undo
+                            </Button>
+                          ))}
+                        <Button variant="ghost" iconOnly aria-label={`Edit ${occurrence.title} at ${formatClock(occurrence.start, timeZone)}`} onClick={() => openOccurrence(occurrence)}>
                           <Pencil aria-hidden="true" className="size-4" />
                         </Button>
                       </li>

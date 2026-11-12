@@ -1,6 +1,7 @@
 import type { DateSelectArg, DatesSetArg, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin, { type EventResizeDoneArg } from '@fullcalendar/interaction'
+import luxonPlugin from '@fullcalendar/luxon3'
 import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import { EVENT_CATEGORY_LABELS, type Occurrence } from '../../domain'
@@ -23,6 +24,8 @@ export interface TimeChange {
 }
 
 interface CalendarViewProps {
+  /** IANA zone the calendar is drawn in: the user's, from their settings. */
+  timeZone: string
   occurrences: readonly Occurrence[]
   onRangeChange: (from: string, to: string) => void
   onSelectSlot: (start: string, end: string) => void
@@ -32,13 +35,13 @@ interface CalendarViewProps {
 
 const key = (occurrence: Occurrence) => `${occurrence.eventId}|${occurrence.occurrenceStart}`
 
-export default function CalendarView({ occurrences, onRangeChange, onSelectSlot, onOpen, onTimeChange }: CalendarViewProps) {
+export default function CalendarView({ timeZone, occurrences, onRangeChange, onSelectSlot, onOpen, onTimeChange }: CalendarViewProps) {
   const isSmall = useMediaQuery('(max-width: 639px)')
   const byKey = new Map(occurrences.map((occurrence) => [key(occurrence), occurrence]))
 
   const events: EventInput[] = occurrences.map((occurrence) => ({
     id: key(occurrence),
-    title: `${occurrence.title}${occurrence.isRecurring ? ' ↻' : ''}`,
+    title: `${occurrence.sessionStatus === 'completed' ? '✓ ' : ''}${occurrence.title}${occurrence.isRecurring ? ' ↻' : ''}`,
     start: occurrence.start,
     end: occurrence.end,
     backgroundColor: CATEGORY_COLOR_VARS[occurrence.category],
@@ -59,7 +62,9 @@ export default function CalendarView({ occurrences, onRangeChange, onSelectSlot,
   return (
     <div className="calendar-theme">
       <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        // The Luxon plugin lets FullCalendar draw in a named IANA zone (DST-aware), not just the device's.
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
+        timeZone={timeZone}
         initialView={isSmall ? 'timeGridDay' : 'timeGridWeek'}
         headerToolbar={
           isSmall

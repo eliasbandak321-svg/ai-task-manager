@@ -15,6 +15,8 @@ export const workspaceKeys = {
   calendarRange: (from: string, to: string) => ['calendar', from, to],
   proposals: ['proposals'],
   insights: ['insights'],
+  dependencies: ['dependencies'],
+  effort: ['effort'],
   aiStatus: ['ai', 'status'],
   conversations: ['ai', 'conversations'],
   messages: (id: string) => ['ai', 'conversations', id],
@@ -39,6 +41,15 @@ export function usePreferencesQuery() {
   return useQuery({ queryKey: workspaceKeys.preferences, queryFn: () => client.getPreferences(browserTimeZone()) })
 }
 
+/**
+ * The user's time zone from their settings: authoritative for the calendar, deadlines and
+ * scheduling. Until the settings load (or are saved) it is the device's zone.
+ */
+export function useUserTimeZone(): string {
+  const preferences = usePreferencesQuery()
+  return preferences.data?.preferences.timeZone ?? browserTimeZone()
+}
+
 export function useSavePreferences() {
   const client = useWorkspace()
   const invalidate = useInvalidate()
@@ -60,7 +71,26 @@ export function useCalendarQuery(from: string | null, to: string | null) {
 
 function useCalendarChange<T>(mutationFn: (input: T) => Promise<unknown>) {
   const invalidate = useInvalidate()
-  return useMutation({ mutationFn, onSettled: () => invalidate(workspaceKeys.calendar, workspaceKeys.insights) })
+  return useMutation({ mutationFn, onSettled: () => invalidate(workspaceKeys.calendar, workspaceKeys.insights, workspaceKeys.effort) })
+}
+
+export function useDependenciesQuery() {
+  const client = useWorkspace()
+  return useQuery({ queryKey: workspaceKeys.dependencies, queryFn: () => client.listDependencies() })
+}
+
+export function useSetDependencies() {
+  const client = useWorkspace()
+  const invalidate = useInvalidate()
+  return useMutation({
+    mutationFn: ({ taskId, dependsOn }: { taskId: string; dependsOn: string[] }) => client.setDependencies(taskId, dependsOn),
+    onSettled: () => invalidate(workspaceKeys.dependencies),
+  })
+}
+
+export function useEffortQuery() {
+  const client = useWorkspace()
+  return useQuery({ queryKey: workspaceKeys.effort, queryFn: () => client.efforts() })
 }
 
 export function useCreateEvent() {
@@ -105,6 +135,8 @@ export function useApplyProposal() {
         workspaceKeys.proposals,
         workspaceKeys.calendar,
         workspaceKeys.insights,
+        workspaceKeys.dependencies,
+        workspaceKeys.effort,
         queryKeys.projects,
         queryKeys.tasks,
         queryKeys.subtasks,

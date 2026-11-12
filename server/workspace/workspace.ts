@@ -11,7 +11,9 @@ import {
   LIMITS,
   planTaskDescription,
   scheduleTasks,
-  WORK_CATEGORIES,
+  computeTaskEffort,
+  openPrerequisites,
+  prerequisitesOf,
   zonedParts,
   zonedRange,
   type ChangesPayload,
@@ -24,10 +26,12 @@ import {
   type ScheduleItem,
   type SchedulePayload,
   type Task,
+  type TaskEffort,
 } from '../../src/domain'
 import type { Database } from '../db/client'
 import { DbRepository } from '../db/dbRepository'
 import { CalendarStore } from './calendarStore'
+import { DependencyStore } from './dependencyStore'
 import { PreferencesStore } from './preferencesStore'
 import { ProposalStore } from './proposalStore'
 
@@ -77,6 +81,7 @@ export class Workspace {
   readonly calendar: CalendarStore
   readonly preferences: PreferencesStore
   readonly proposals: ProposalStore
+  readonly dependencies: DependencyStore
 
   constructor(db: Database, userId: string, { now = () => new Date(), newId = randomUUID }: WorkspaceOptions = {}) {
     this.db = db
@@ -87,6 +92,17 @@ export class Workspace {
     this.calendar = new CalendarStore(db, userId, now, newId)
     this.preferences = new PreferencesStore(db, userId, now)
     this.proposals = new ProposalStore(db, userId, now, newId)
+    this.dependencies = new DependencyStore(db, userId, now)
+  }
+
+  /** Effort of every open task (estimate, completed, planned, missed, remaining). */
+  async efforts(): Promise<Record<string, TaskEffort>> {
+    const now = this.now()
+    const [tasks, sessions] = await Promise.all([
+      this.tasks.listTasks(),
+      this.calendar.linkedSessions(now, new Date(now.getTime() + MAX_SCHEDULE_DAYS * 2 * 86_400_000)),
+    ])
+    return Object.fromEntries(tasks.map((task) => [task.id, computeTaskEffort(task, sessions, now)]))
   }
 
   async prefs(): Promise<Preferences> {
@@ -106,14 +122,18 @@ export class Workspace {
     const from = request.from < today ? today : request.from
     const to = request.to < from ? from : request.to
 
-    const allTasks = await this.tasks.listTasks()
+    const [allTasks, edges] = await Promise.all([this.tasks.listTasks(), this.dependencies.list()])
     if (request.taskIds) {
       const known = new Set(allTasks.map((task) => task.id))
       if (request.taskIds.some((id) => !known.has(id))) throw new DomainError('NOT_FOUND', 'Task not found')
     }
+    const openIds = new Set(allTasks.filter((task) => task.status !== 'done').map((task) => task.id))
     const wanted = request.taskIds ? new Set(request.taskIds) : null
-    const selected = allTasks.filter((task) => task.status !== 'done' && (wanted === null || wanted.has(task.id)))
+    // Open prerequisites of the chosen tasks are scheduled too: the chosen ones can't start without them.
+    const added = wanted ? [...openPrerequisites(wanted, edges, (id) => openIds.has(id))].filter((id) => !wanted.has(id)) : []
+    const selected = allTasks.filter((task) => openIds.has(task.id) && (wanted === null || wanted.has(task.id) || added.includes(task.id)))
     const selectedIds = new Set(selected.map((task) => task.id))
+    const prerequisites = prerequisitesOf(edges)
 
     const range = zonedRange(from, to, tz)
     const occurrences = await this.calendar.occurrences(now < range.start ? now : range.start, range.end)
@@ -122,7 +142,13 @@ export class Workspace {
     const replaceable =
       request.mode === 'replan'
         ? occurrences.filter(
-            (o) => !o.isRecurring && o.category === 'work_session' && o.taskId !== null && selectedIds.has(o.taskId) && new Date(o.start) >= now,
+            (o) =>
+              !o.isRecurring &&
+              o.category === 'work_session' &&
+              o.sessionStatus === 'planned' &&
+              o.taskId !== null &&
+              selectedIds.has(o.taskId) &&
+              new Date(o.start) >= now,
           )
         : []
     const replaceableIds = new Set(replaceable.map((o) => o.eventId))
@@ -130,15 +156,22 @@ export class Workspace {
       .filter((o) => !replaceableIds.has(o.eventId))
       .map((o) => ({ start: new Date(o.start), end: new Date(o.end), category: o.category }))
 
-    // Time already reserved for each task (not counting sessions that may be replanned).
-    const reserved = new Map<string, number>()
-    for (const o of occurrences) {
-      if (o.taskId === null || replaceableIds.has(o.eventId) || !WORK_CATEGORIES.includes(o.category)) continue
-      reserved.set(o.taskId, (reserved.get(o.taskId) ?? 0) + (new Date(o.end).getTime() - new Date(o.start).getTime()) / 60_000)
-    }
+    // Effort per task: completed sessions count as done; kept upcoming sessions as planned
+    // (sessions that may be replanned don't count, they're being placed again).
+    const sessions = (await this.calendar.linkedSessions(now, range.end)).filter((o) => !replaceableIds.has(o.eventId))
+    const realNow = this.now()
 
     const result = scheduleTasks({
-      tasks: selected.map((task) => ({ ...task, scheduledMinutes: reserved.get(task.id) ?? 0 })),
+      tasks: selected.map((task) => {
+        const effort = computeTaskEffort(task, sessions, realNow)
+        return {
+          ...task,
+          completedMinutes: effort.completedMinutes,
+          plannedMinutes: effort.plannedMinutes,
+          plannedUntil: effort.plannedUntil ? new Date(effort.plannedUntil) : null,
+          dependsOn: (prerequisites.get(task.id) ?? []).filter((id) => openIds.has(id)),
+        }
+      }),
       busy,
       prefs,
       from,
@@ -184,12 +217,22 @@ export class Workspace {
     if (result.assumedEstimates.length > 0) {
       explanation.push(`${result.assumedEstimates.length} task(s) have no time estimate, so 1 h was assumed for each. Add estimates for a more accurate plan.`)
     }
+    if (added.length > 0) {
+      explanation.push(`Also scheduled, because the chosen tasks depend on them: ${added.map((id) => `"${titles.get(id)}"`).join(', ')}.`)
+    }
+    if (edges.some((edge) => selectedIds.has(edge.taskId))) {
+      explanation.push('Tasks with prerequisites start only after their prerequisites are finished.')
+    }
     for (const missing of result.unscheduled) {
       const task = selected.find((t) => t.id === missing.taskId) as Task
       explanation.push(
         missing.reason === 'deadline_passed'
           ? `"${task.title}" is overdue (due ${task.dueDate}). Set a new deadline to schedule it.`
-          : `Not enough free time for "${task.title}"${task.dueDate ? ` before its deadline (${task.dueDate})` : ' in this period'}: ${hours(missing.missingMinutes)} could not be placed. Options: move the deadline, extend your working hours, or reduce other work.`,
+          : missing.reason === 'blocked_by_dependency'
+            ? `"${task.title}" waits for "${titles.get(missing.blockedBy ?? '') ?? 'a prerequisite'}", which doesn't fit in this period, so it can't be scheduled yet.`
+            : missing.reason === 'dependency_cycle'
+              ? `"${task.title}" is part of a circular dependency. Remove one of the dependencies to schedule it.`
+              : `Not enough free time for "${task.title}"${task.dueDate ? ` before its deadline (${task.dueDate})` : ' in this period'}: ${hours(missing.missingMinutes)} could not be placed. Options: move the deadline, extend your working hours, or reduce other work.`,
       )
     }
 
@@ -279,7 +322,7 @@ export class Workspace {
       let result: unknown
       if (payload.kind === 'plan') {
         if (include !== undefined) throw new z.ZodError([{ code: 'custom', path: ['include'], message: 'Not supported for plans', input: include }])
-        result = await this.applyPlan(tasks, plan ?? payload.plan)
+        result = await this.applyPlan(tasks, this.dependencies.within(tx), plan ?? payload.plan)
       } else if (plan !== undefined) {
         throw new z.ZodError([{ code: 'custom', path: ['plan'], message: 'Only plan proposals take a plan', input: plan }])
       } else if (payload.kind === 'schedule') {
@@ -292,7 +335,7 @@ export class Workspace {
     })
   }
 
-  private async applyPlan(tasks: DbRepository, plan: ProjectPlan) {
+  private async applyPlan(tasks: DbRepository, dependencies: DependencyStore, plan: ProjectPlan) {
     // Never merges into (or duplicates the name of) an existing project.
     const names = new Set((await tasks.listProjects()).map((project) => project.name.toLowerCase()))
     let name = plan.projectName
@@ -302,6 +345,7 @@ export class Workspace {
     }
     const project = await tasks.createProject({ name })
     const titles = new Map(plan.phases.flatMap((phase) => phase.tasks.map((task) => [task.key, task.title] as const)))
+    const idsByKey = new Map<string, string>()
     const taskIds: string[] = []
     for (const phase of plan.phases) {
       for (const planned of phase.tasks) {
@@ -314,9 +358,21 @@ export class Workspace {
           estimatedMinutes: planned.estimatedMinutes,
         })
         for (const title of planned.subtasks) await tasks.createSubtask(task.id, { title })
+        idsByKey.set(planned.key, task.id)
         taskIds.push(task.id)
       }
     }
+    // Dependencies only point to earlier tasks of the plan, so they can't form a cycle.
+    const edges = plan.phases.flatMap((phase) =>
+      phase.tasks.flatMap((planned) =>
+        planned.dependsOn.flatMap((key) => {
+          const taskId = idsByKey.get(planned.key)
+          const dependsOnId = idsByKey.get(key)
+          return taskId && dependsOnId ? [{ taskId, dependsOnId }] : []
+        }),
+      ),
+    )
+    await dependencies.addValidated(edges)
     return { projectId: project.id, taskIds }
   }
 

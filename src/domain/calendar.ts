@@ -33,6 +33,13 @@ export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
 /** Categories that count as working time (for daily limits and workload). */
 export const WORK_CATEGORIES: readonly EventCategory[] = ['work_session', 'study', 'focus']
 
+/**
+ * What happened to a session: planned (default), completed (counts as work done on its task),
+ * or skipped. Only a single event can be marked; a repeating one is separated first.
+ */
+export const SESSION_STATUSES = ['planned', 'completed', 'skipped'] as const
+export type SessionStatus = (typeof SESSION_STATUSES)[number]
+
 export const RECURRENCE_FREQUENCIES = ['daily', 'weekly', 'monthly'] as const
 const MAX_EVENT_MINUTES = 14 * 24 * 60
 /** Safety caps when expanding a series, whatever the rule says. */
@@ -77,6 +84,7 @@ export const calendarEventSchema = z.object({
   excludedStarts: z.array(timestampSchema),
   seriesId: idSchema.nullable(),
   originalStart: timestampSchema.nullable(),
+  sessionStatus: z.enum(SESSION_STATUSES),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 })
@@ -117,6 +125,7 @@ export const updateEventInputSchema = z
     timeZone: timeZoneSchema,
     taskId: idSchema.nullable(),
     recurrence: recurrenceSchema.nullable(),
+    sessionStatus: z.enum(SESSION_STATUSES),
   })
   .partial()
   .refine((value) => Object.values(value).some((field) => field !== undefined), 'Provide at least one field to update')
@@ -136,6 +145,7 @@ export interface Occurrence {
   isRecurring: boolean
   /** Set for an edited occurrence stored as its own event. */
   seriesId: string | null
+  sessionStatus: SessionStatus
 }
 
 interface RangeEvent {
@@ -149,6 +159,7 @@ interface RangeEvent {
   recurrence: Recurrence | null
   excludedStarts: readonly string[]
   seriesId: string | null
+  sessionStatus?: SessionStatus
 }
 
 function addMonths(date: IsoDate, months: number): IsoDate | null {
@@ -195,6 +206,8 @@ export function expandEvent(event: RangeEvent, rangeStart: Date, rangeEnd: Date)
     taskId: event.taskId,
     isRecurring: event.recurrence !== null,
     seriesId: event.seriesId,
+    // Occurrences of a series are always planned; marking one separates it first.
+    sessionStatus: event.recurrence === null ? (event.sessionStatus ?? 'planned') : ('planned' as const),
   }
   const overlaps = (occurrenceStart: Date) =>
     occurrenceStart < rangeEnd && addMinutes(occurrenceStart, durationMinutes) > rangeStart

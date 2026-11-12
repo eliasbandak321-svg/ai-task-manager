@@ -85,13 +85,15 @@ export function computeInsights(input: {
   }))
   const byDate = new Map(workload.map((day) => [day.date, day]))
   for (const occurrence of input.upcoming) {
-    if (!WORK_CATEGORIES.includes(occurrence.category)) continue
+    if (!WORK_CATEGORIES.includes(occurrence.category) || occurrence.sessionStatus === 'skipped') continue
     const day = byDate.get(zonedParts(new Date(occurrence.start), prefs.timeZone).date)
     if (day) day.scheduledMinutes += minutesBetween(new Date(occurrence.start), new Date(occurrence.end))
   }
 
   const sessionTaskIds = new Set(
-    input.upcoming.filter((occurrence) => occurrence.taskId !== null && new Date(occurrence.end) > now).map((occurrence) => occurrence.taskId),
+    input.upcoming
+      .filter((occurrence) => occurrence.taskId !== null && occurrence.sessionStatus === 'planned' && new Date(occurrence.end) > now)
+      .map((occurrence) => occurrence.taskId),
   )
   const unscheduledTasks = open.filter((task) => !sessionTaskIds.has(task.id))
 

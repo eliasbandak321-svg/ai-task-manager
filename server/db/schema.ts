@@ -17,7 +17,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import type { Recurrence } from '../../src/domain/calendar'
-import { EVENT_CATEGORIES } from '../../src/domain/calendar'
+import { EVENT_CATEGORIES, SESSION_STATUSES } from '../../src/domain/calendar'
 import { LIMITS, TASK_PRIORITIES, TASK_STATUSES } from '../../src/domain/constants'
 import { FOCUS_PERIODS, USE_CASES } from '../../src/domain/scheduling'
 
@@ -270,6 +270,8 @@ export const calendarEvents = pgTable(
     /** For an edited occurrence stored on its own: the series it came from. */
     seriesId: uuid('series_id'),
     originalStart: timestamp('original_start', { withTimezone: true }),
+    /** planned (default), completed (counts as work done on the task) or skipped. */
+    sessionStatus: text('session_status', { enum: SESSION_STATUSES }).notNull().default('planned'),
     ...timestamps,
   },
   (table) => [
@@ -291,6 +293,7 @@ export const calendarEvents = pgTable(
     check('calendar_event_title_length', maxLength('title', 200)),
     check('calendar_event_description_length', sql.raw('char_length(description) <= 2000')),
     check('calendar_event_category_valid', oneOf('category', EVENT_CATEGORIES)),
+    check('calendar_event_session_status_valid', oneOf('session_status', SESSION_STATUSES)),
     check('calendar_event_span_valid', sql`${table.endAt} > ${table.startAt} and ${table.endAt} - ${table.startAt} <= interval '14 days'`),
   ],
 )
@@ -387,6 +390,40 @@ export const aiUsage = pgTable(
     requests: integer('requests').notNull().default(0),
     inputTokens: integer('input_tokens').notNull().default(0),
     outputTokens: integer('output_tokens').notNull().default(0),
+    /** Cost of real provider calls in millionths of a US dollar (for the spending cap). */
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'number' }).notNull().default(0),
   },
   (table) => [primaryKey({ columns: [table.userId, table.day] })],
+)
+
+/**
+ * Task dependencies: `task_id` can only start after `depends_on_id` is finished. Both tasks
+ * belong to the same user (composite keys); deleting either task removes the edge. The graph
+ * is kept acyclic by the domain (planDependencies).
+ */
+export const taskDependencies = pgTable(
+  'task_dependency',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    taskId: uuid('task_id').notNull(),
+    dependsOnId: uuid('depends_on_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.dependsOnId] }),
+    foreignKey({
+      name: 'task_dependency_task_same_user_fk',
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'task_dependency_prerequisite_same_user_fk',
+      columns: [table.dependsOnId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+    }).onDelete('cascade'),
+    index('task_dependency_user_idx').on(table.userId),
+    check('task_dependency_not_self', sql`${table.taskId} <> ${table.dependsOnId}`),
+  ],
 )

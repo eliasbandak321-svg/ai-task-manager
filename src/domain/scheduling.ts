@@ -84,8 +84,14 @@ export interface SchedulableTask {
   createdAt: string
   /** Total estimate, or null when unknown. */
   estimatedMinutes: number | null
-  /** Minutes already covered by existing work sessions linked to the task. */
-  scheduledMinutes: number
+  /** Work already done: sessions marked completed. */
+  completedMinutes: number
+  /** Upcoming sessions that are kept (not replanned). */
+  plannedMinutes: number
+  /** End of the last kept upcoming session, if any. */
+  plannedUntil: Date | null
+  /** Prerequisites (open tasks that must finish first). Done or unknown ids are ignored. */
+  dependsOn: readonly string[]
 }
 
 export interface BusyInterval {
@@ -100,12 +106,12 @@ export interface ProposedSession {
   end: Date
 }
 
-export type UnscheduledReason = 'not_enough_time' | 'deadline_passed'
+export type UnscheduledReason = 'not_enough_time' | 'deadline_passed' | 'blocked_by_dependency' | 'dependency_cycle'
 
 export interface ScheduleResult {
   sessions: ProposedSession[]
   /** Tasks (or parts of them) that couldn't be placed, and why. */
-  unscheduled: { taskId: string; reason: UnscheduledReason; missingMinutes: number }[]
+  unscheduled: { taskId: string; reason: UnscheduledReason; missingMinutes: number; blockedBy?: string }[]
   /** Tasks scheduled with DEFAULT_ESTIMATE_MINUTES because they had no estimate. */
   assumedEstimates: string[]
   freeMinutes: number
@@ -176,6 +182,57 @@ function existingWorkByDate(busy: readonly BusyInterval[], timeZone: string): Ma
   return totals
 }
 
+/**
+ * Orders tasks so prerequisites come first; among ready tasks, the most urgent first.
+ * Urgency is inherited: a prerequisite is as urgent as its most urgent dependent.
+ * Tasks on a cycle are returned separately.
+ */
+function dependencyOrder(tasks: readonly SchedulableTask[]): { ordered: SchedulableTask[]; cyclic: SchedulableTask[] } {
+  const byId = new Map(tasks.map((task) => [task.id, task]))
+  const prerequisites = new Map(tasks.map((task) => [task.id, task.dependsOn.filter((id) => byId.has(id) && id !== task.id)]))
+  const dependents = new Map<string, string[]>()
+  for (const [id, prereqs] of prerequisites) for (const prereq of prereqs) dependents.set(prereq, [...(dependents.get(prereq) ?? []), id])
+
+  // Effective deadline: the earliest due date among the task and everything that depends on it.
+  const effectiveDue = new Map<string, string>()
+  function due(id: string, seen: Set<string>): string {
+    const known = effectiveDue.get(id)
+    if (known !== undefined) return known
+    if (seen.has(id)) return '9999-12-31'
+    seen.add(id)
+    const own = byId.get(id)?.dueDate ?? '9999-12-31'
+    const value = (dependents.get(id) ?? []).reduce((min, dependent) => {
+      const other = due(dependent, seen)
+      return other < min ? other : min
+    }, own)
+    effectiveDue.set(id, value)
+    return value
+  }
+  for (const task of tasks) due(task.id, new Set())
+
+  const rank = (a: SchedulableTask, b: SchedulableTask) =>
+    (effectiveDue.get(a.id) as string).localeCompare(effectiveDue.get(b.id) as string) ||
+    PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
+    a.createdAt.localeCompare(b.createdAt) ||
+    a.id.localeCompare(b.id)
+
+  const waiting = new Map(tasks.map((task) => [task.id, (prerequisites.get(task.id) ?? []).length]))
+  const ready = tasks.filter((task) => waiting.get(task.id) === 0)
+  const ordered: SchedulableTask[] = []
+  while (ready.length > 0) {
+    ready.sort(rank)
+    const next = ready.shift() as SchedulableTask
+    ordered.push(next)
+    for (const dependent of dependents.get(next.id) ?? []) {
+      const left = (waiting.get(dependent) ?? 0) - 1
+      waiting.set(dependent, left)
+      if (left === 0) ready.push(byId.get(dependent) as SchedulableTask)
+    }
+  }
+  const placed = new Set(ordered.map((task) => task.id))
+  return { ordered, cyclic: tasks.filter((task) => !placed.has(task.id)) }
+}
+
 export function scheduleTasks(input: {
   tasks: readonly SchedulableTask[]
   busy: readonly BusyInterval[]
@@ -190,28 +247,46 @@ export function scheduleTasks(input: {
   const slots = from <= input.to ? freeSlots(prefs, input.busy, from, input.to, now) : []
   const dailyUsed = existingWorkByDate(input.busy, prefs.timeZone)
   const freeMinutes = slots.reduce((sum, slot) => sum + minutesBetween(slot.start, slot.end), 0)
-
-  const ordered = [...input.tasks].sort(
-    (a, b) =>
-      (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31') ||
-      PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
-      a.createdAt.localeCompare(b.createdAt) ||
-      a.id.localeCompare(b.id),
-  )
+  const { ordered, cyclic } = dependencyOrder(input.tasks)
 
   const result: ScheduleResult = { sessions: [], unscheduled: [], assumedEstimates: [], freeMinutes, requestedMinutes: 0 }
+  /** When each task is expected to be finished (null: already done/ready now); absent = not finished in time. */
+  const finishedAt = new Map<string, Date | null>()
+  const inSet = new Set(input.tasks.map((task) => task.id))
+
+  for (const task of cyclic) {
+    const needed = Math.max(0, (task.estimatedMinutes ?? DEFAULT_ESTIMATE_MINUTES) - task.completedMinutes - task.plannedMinutes)
+    result.unscheduled.push({ taskId: task.id, reason: 'dependency_cycle', missingMinutes: needed })
+  }
+
   for (const task of ordered) {
     if (task.estimatedMinutes === null) result.assumedEstimates.push(task.id)
-    let remaining = Math.max(0, (task.estimatedMinutes ?? DEFAULT_ESTIMATE_MINUTES) - task.scheduledMinutes)
-    if (remaining === 0) continue
+    let remaining = Math.max(0, (task.estimatedMinutes ?? DEFAULT_ESTIMATE_MINUTES) - task.completedMinutes - task.plannedMinutes)
     result.requestedMinutes += remaining
 
+    // Not before every prerequisite is finished.
+    let earliest: Date | null = null
+    const blocker = task.dependsOn.find((id) => inSet.has(id) && !finishedAt.has(id))
+    if (blocker) {
+      result.unscheduled.push({ taskId: task.id, reason: 'blocked_by_dependency', missingMinutes: remaining, blockedBy: blocker })
+      continue
+    }
+    for (const id of task.dependsOn) {
+      const end = finishedAt.get(id)
+      if (end && (earliest === null || end > earliest)) earliest = end
+    }
+
+    if (remaining === 0) {
+      finishedAt.set(task.id, task.plannedUntil && earliest && task.plannedUntil < earliest ? earliest : (task.plannedUntil ?? earliest))
+      continue
+    }
     if (task.dueDate !== null && task.dueDate < today) {
       result.unscheduled.push({ taskId: task.id, reason: 'deadline_passed', missingMinutes: remaining })
       continue
     }
     // Work must end by the end of the due date (local).
     const deadline = task.dueDate === null ? null : zonedToUtc(addDays(task.dueDate, 1), 0, prefs.timeZone)
+    let lastEnd: Date | null = task.plannedUntil
 
     // Days in order; within a day, focus slots first.
     const candidates = [...slots].sort(
@@ -220,17 +295,22 @@ export function scheduleTasks(input: {
     for (const slot of candidates) {
       // Fill the slot with sessions until the task, the slot or the day's budget runs out.
       while (remaining > 0) {
-        if (deadline !== null && slot.start >= deadline) break
+        const start = earliest !== null && earliest > slot.start ? earliest : slot.start
+        if (deadline !== null && start >= deadline) break
         const dayLeft = prefs.maxDailyMinutes - (dailyUsed.get(slot.date) ?? 0)
         const slotEnd = deadline !== null && slot.end > deadline ? deadline : slot.end
-        const length = Math.min(remaining, prefs.sessionMinutes, minutesBetween(slot.start, slotEnd), dayLeft)
+        const length = Math.min(remaining, prefs.sessionMinutes, minutesBetween(start, slotEnd), dayLeft)
         // Avoid tiny fragments, unless it's exactly what's left of the task.
         if (length <= 0 || length < Math.min(MIN_SESSION_MINUTES, remaining)) break
 
-        const start = slot.start
+        // Time skipped before a dependency-constrained start stays free for other tasks.
+        if (start > slot.start && minutesBetween(slot.start, start) >= MIN_SESSION_MINUTES) {
+          slots.push({ date: slot.date, start: slot.start, end: start, inFocus: slot.inFocus })
+        }
         const end = addMinutes(start, length)
         result.sessions.push({ taskId: task.id, start, end })
         remaining -= length
+        if (lastEnd === null || end > lastEnd) lastEnd = end
         dailyUsed.set(slot.date, (dailyUsed.get(slot.date) ?? 0) + length)
         // The rest of the slot starts after a break.
         slot.start = addMinutes(end, prefs.breakMinutes)
@@ -239,6 +319,7 @@ export function scheduleTasks(input: {
       if (remaining === 0) break
     }
     if (remaining > 0) result.unscheduled.push({ taskId: task.id, reason: 'not_enough_time', missingMinutes: remaining })
+    else finishedAt.set(task.id, lastEnd)
   }
   result.sessions.sort((a, b) => a.start.getTime() - b.start.getTime())
   return result

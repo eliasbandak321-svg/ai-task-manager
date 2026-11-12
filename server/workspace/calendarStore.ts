@@ -112,6 +112,22 @@ export class CalendarStore {
     return expandEvents(await this.eventsInRange(from, to), from, to)
   }
 
+  /**
+   * Every task-linked session relevant to effort: all single linked events (any time; their
+   * status says whether the work was done), plus occurrences of linked series in [from, until).
+   */
+  async linkedSessions(from: Date, until: Date): Promise<Occurrence[]> {
+    const rows = await this.db
+      .select()
+      .from(calendarEvents)
+      .where(and(eq(calendarEvents.userId, this.userId), isNotNull(calendarEvents.taskId)))
+    return rows.map(toEvent).flatMap((event) =>
+      event.recurrence === null
+        ? expandEvent(event, new Date(event.startAt), new Date(event.endAt))
+        : expandEvent(event, from, until),
+    )
+  }
+
   async listByTask(taskId: string): Promise<CalendarEvent[]> {
     const rows = await this.db
       .select()
@@ -160,6 +176,7 @@ export class CalendarStore {
       excludedStarts: [],
       seriesId: null,
       originalStart: null,
+      sessionStatus: 'planned',
       createdAt: timestamp,
       updatedAt: timestamp,
     }
@@ -211,6 +228,16 @@ export class CalendarStore {
     const { scope, occurrenceStart, changes } = eventChangeSchema.parse(input)
     const event = await this.get(id)
     await this.assertTask(changes.taskId)
+    if (changes.sessionStatus !== undefined) {
+      // A whole series can't be "done"; mark one occurrence (which separates it) instead.
+      if (event.recurrence !== null && scope !== 'occurrence') {
+        throw new DomainError('INVALID_SESSION_STATUS', 'Mark a single occurrence of a repeating event, not the whole series')
+      }
+      const start = changes.startAt ?? (event.recurrence !== null && occurrenceStart ? occurrenceStart : event.startAt)
+      if (changes.sessionStatus === 'completed' && new Date(start) > this.now()) {
+        throw new DomainError('INVALID_SESSION_STATUS', "A session can't be marked as done before it starts")
+      }
+    }
 
     // A single event (or an already separated occurrence): just apply the changes.
     if (event.recurrence === null) {

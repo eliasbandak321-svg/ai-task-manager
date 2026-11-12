@@ -8,9 +8,9 @@ describe('migration status (read-only check used by servers)', () => {
   it('reports every migration as pending on an empty database, and none after migrating', async () => {
     const database = await openDatabase({ kind: 'pglite' }) // opening alone never migrates
     try {
-      expect(await pendingMigrations(database.db)).toEqual(['0000_init', '0001_auth', '0002_calendar_ai'])
+      expect(await pendingMigrations(database.db)).toEqual(['0000_init', '0001_auth', '0002_calendar_ai', '0003_dependencies_effort'])
       await expect(assertSchemaUpToDate(database.db)).rejects.toThrow(
-        'The database schema is out of date (pending migrations: 0000_init, 0001_auth, 0002_calendar_ai). Run `npm run db:migrate`',
+        'The database schema is out of date (pending migrations: 0000_init, 0001_auth, 0002_calendar_ai, 0003_dependencies_effort). Run `npm run db:migrate`',
       )
 
       await database.migrate()
