@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AuthRequiredError } from '../data/errors'
 import { createMemoryStorage, LocalRepository } from '../data/localRepository'
 import { createQueryClient } from '../data/queryClient'
-import { createFakeAuthClient, TEST_PASSWORD, TEST_USER } from '../test/fakeAuthClient'
+import { createFakeAuthClient, TEST_PASSWORD, TEST_USER, VALID_RESET_TOKEN } from '../test/fakeAuthClient'
 import DashboardApp from './DashboardApp'
 
 /*
@@ -84,34 +84,111 @@ describe('signing in', () => {
   })
 })
 
-describe('signing up', () => {
-  it('creates an account and opens the new user’s empty Inbox', async () => {
-    const { user, authClient } = renderApp('/signup')
-
+describe('signing up (email confirmation required)', () => {
+  async function fillSignUp(user: ReturnType<typeof userEvent.setup>, email: string, password = 'a long enough password') {
     await user.type(await screen.findByRole('textbox', { name: 'Name' }), 'Grace Hopper')
-    await user.type(screen.getByRole('textbox', { name: 'Email' }), 'Grace@Example.test')
-    await user.type(screen.getByLabelText('Password'), 'a long enough password')
+    await user.type(screen.getByRole('textbox', { name: 'Email' }), email)
+    await user.type(screen.getByLabelText('Password'), password)
     await user.click(screen.getByRole('button', { name: 'Create account' }))
+  }
 
+  it('asks the new user to confirm their email; they can sign in once confirmed', async () => {
+    const { user, authClient } = renderApp('/signup')
+    await fillSignUp(user, 'Grace@Example.test')
+
+    expect(await heading('Check your email')).toBeInTheDocument()
+    expect(screen.getByText('grace@example.test')).toBeInTheDocument()
+    expect(authClient.currentUser).toBeNull()
+
+    // Signing in before confirming explains what to do.
+    await user.click(screen.getByRole('link', { name: 'Back to sign in' }))
+    await fillLogin(user, 'grace@example.test', 'a long enough password')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Please confirm your email address first.')
+
+    authClient.confirmEmail('grace@example.test')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(await heading('All tasks')).toBeInTheDocument()
-    expect(authClient.currentUser).toMatchObject({ name: 'Grace Hopper', email: 'grace@example.test' })
     expect(screen.getByText('No tasks yet')).toBeInTheDocument()
   })
 
-  it('validates the form and explains a taken email', async () => {
+  it('shows the same confirmation for an email that already has an account (no enumeration)', async () => {
     const { user } = renderApp('/signup')
+    await fillSignUp(user, TEST_USER.email)
+    expect(await heading('Check your email')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 
-    await user.type(await screen.findByRole('textbox', { name: 'Name' }), 'Ada')
-    await user.type(screen.getByRole('textbox', { name: 'Email' }), TEST_USER.email)
-    await user.type(screen.getByLabelText('Password'), 'short')
-    await user.click(screen.getByRole('button', { name: 'Create account' }))
+  it('validates the form', async () => {
+    const { user } = renderApp('/signup')
+    await fillSignUp(user, 'not-an-email', 'short')
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveAccessibleDescription('Enter a valid email address')
     expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
       'At least 8 characters. Password must be at least 8 characters',
     )
+  })
+})
 
-    await user.type(screen.getByLabelText('Password'), ' but longer now')
-    await user.click(screen.getByRole('button', { name: 'Create account' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('An account with this email already exists. Sign in instead.')
+describe('password reset', () => {
+  it('requests a reset link from the login page, with the same answer for any email', async () => {
+    const { user, authClient } = renderApp('/login')
+    await user.click(await screen.findByRole('link', { name: 'Forgot your password?' }))
+    expect(await heading('Reset your password')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Send reset link' }))
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveAccessibleDescription('Enter a valid email address')
+
+    await user.type(screen.getByRole('textbox', { name: 'Email' }), 'someone@example.test')
+    await user.click(screen.getByRole('button', { name: 'Send reset link' }))
+    expect(await heading('Check your email')).toBeInTheDocument()
+    expect(screen.getByText(/If an account exists for/)).toHaveTextContent('someone@example.test')
+    expect(authClient.resetRequests).toEqual(['someone@example.test'])
+  })
+
+  it('sets a new password from the emailed link, then asks to sign in with it', async () => {
+    const { user, authClient } = renderApp(`/reset-password?token=${VALID_RESET_TOKEN}`)
+
+    await user.type(await screen.findByLabelText('New password'), 'a brand new passphrase')
+    await user.type(screen.getByLabelText('Confirm new password'), 'a different passphrase')
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    expect(screen.getByLabelText('Confirm new password')).toHaveAccessibleDescription('The passwords don’t match')
+
+    await user.clear(screen.getByLabelText('Confirm new password'))
+    await user.type(screen.getByLabelText('Confirm new password'), 'a brand new passphrase')
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+
+    expect(await heading('Sign in')).toBeInTheDocument()
+    expect(location()).toBe('/login?reset=success')
+    expect(screen.getByText('Your password has been changed. Sign in with your new password.')).toBeInTheDocument()
+    expect(authClient.accountFor(TEST_USER.email)?.password).toBe('a brand new passphrase')
+  })
+
+  it.each(['/reset-password', '/reset-password?error=INVALID_TOKEN'])('explains an unusable link at %s', async (path) => {
+    renderApp(path)
+    expect(await heading('This link can’t be used')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('This reset link is invalid or has expired.')
+    expect(screen.getByRole('link', { name: 'Request a new link' })).toHaveAttribute('href', '/forgot-password')
+  })
+
+  it('reports a token the server rejects', async () => {
+    const { user } = renderApp('/reset-password?token=expired-token')
+    await user.type(await screen.findByLabelText('New password'), 'a brand new passphrase')
+    await user.type(screen.getByLabelText('Confirm new password'), 'a brand new passphrase')
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('This reset link is invalid or has expired.')
+  })
+})
+
+describe('email confirmation page', () => {
+  it('welcomes a confirmed user into the app', async () => {
+    renderApp('/email-verified', { signedIn: true })
+    expect(await heading('Email confirmed')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to your tasks' })).toHaveAttribute('href', '/app')
+  })
+
+  it('explains an invalid or expired confirmation link', async () => {
+    renderApp('/email-verified?error=invalid_token')
+    expect(await heading('This link can’t be used')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('This confirmation link is invalid or has expired.')
   })
 })
 

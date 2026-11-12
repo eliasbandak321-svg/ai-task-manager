@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createApp } from './app'
 import { createAuth, sessionUser } from './auth'
 import { accounts, sessions, users } from './db/schema'
+import { MemoryMailer } from './mail'
 import { setupTestDatabase } from './test/testDatabase'
 
 /*
@@ -19,15 +20,33 @@ const PASSWORD = 'correct horse battery staple'
 let emailCounter = 0
 const uniqueEmail = (name = 'user') => `${name}-${(emailCounter += 1)}-${Date.now()}@example.test`
 
+const mailers = new WeakMap<object, MemoryMailer>()
+
 function setup({ secureCookies = false, rateLimit = false } = {}) {
-  const auth = createAuth({ db: database(), secret: SECRET, appOrigin: ORIGIN, secureCookies, rateLimit })
+  const mailer = new MemoryMailer()
+  const auth = createAuth({
+    db: database(),
+    secret: SECRET,
+    appOrigin: ORIGIN,
+    secureCookies,
+    rateLimit,
+    mailer,
+    trustedProxies: ['127.0.0.1'],
+  })
   const app = createApp({
     db: database(),
     resolveUserId: sessionUser(auth),
     trustedOrigins: [ORIGIN],
     authHandler: auth.handler,
   })
-  return { app, auth }
+  mailers.set(app, mailer)
+  return { app, auth, mailer }
+}
+
+/** The path and query of an absolute link from an email. */
+const pathOf = (link: string | undefined) => {
+  const url = new URL(link ?? 'missing://link')
+  return `${url.pathname}${url.search}`
 }
 
 type App = ReturnType<typeof setup>['app']
@@ -68,9 +87,20 @@ function cookieHeader(headers: Headers): string {
     .join('; ')
 }
 
+/**
+ * The full sign-up: create the account (no session yet), then open the link from the
+ * verification email, which confirms the address and signs the user in. `result` is that
+ * verification response (it sets the session cookie).
+ */
 async function signUp(app: App, email = uniqueEmail(), name = 'Test User') {
-  const result = await send(app, 'POST', '/api/auth/sign-up/email', { body: { name, email, password: PASSWORD } })
-  expect(result.status).toBe(200)
+  const created = await send(app, 'POST', '/api/auth/sign-up/email', {
+    body: { name, email, password: PASSWORD, callbackURL: '/email-verified' },
+  })
+  expect(created.status).toBe(200)
+  expect(created.headers.getSetCookie()).toEqual([])
+  const link = mailers.get(app)?.latestTo(email)?.link
+  const result = await send(app, 'GET', pathOf(link))
+  expect(result.status).toBe(302)
   return { email, cookie: cookieHeader(result.headers), result }
 }
 
@@ -120,7 +150,8 @@ describe('sign-up', () => {
     const takeover = await send(app, 'POST', '/api/auth/sign-up/email', {
       body: { name: 'Mallory', email, password: 'a different password' },
     })
-    expect(takeover.status).toBe(422)
+    expect(takeover.status).toBe(200) // same answer as a new account: no enumeration (see below)
+    expect(takeover.headers.getSetCookie()).toEqual([])
     const signIn = await send(app, 'POST', '/api/auth/sign-in/email', { body: { email, password: PASSWORD } })
     expect(signIn.status).toBe(200)
   })
@@ -200,8 +231,9 @@ describe('authorization: who is the user?', () => {
 
   it('only accepts the signed HttpOnly cookie, not the raw token that responses expose to JavaScript', async () => {
     const { app } = setup()
-    const { cookie, result } = await signUp(app)
-    const rawToken = (result.json as { token?: string }).token
+    const { cookie } = await signUp(app)
+    const session = await send(app, 'GET', '/api/auth/get-session', { cookie })
+    const rawToken = (session.json as { session?: { token?: string } }).session?.token
     expect(rawToken).toBeTruthy()
 
     // The cookie carries the token plus a signature made with BETTER_AUTH_SECRET; the token

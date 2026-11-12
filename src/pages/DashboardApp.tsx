@@ -11,7 +11,10 @@ import { HttpRepository } from '../data/httpRepository'
 import { createQueryClient } from '../data/queryClient'
 import type { TaskRepository } from '../data/repository'
 import { RepositoryContext } from '../data/repositoryContext'
+import { EmailVerifiedPage } from './EmailVerifiedPage'
+import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { LoginPage } from './LoginPage'
+import { ResetPasswordPage } from './ResetPasswordPage'
 import { NotFoundPage } from './NotFoundPage'
 import { SignupPage } from './SignupPage'
 import { TasksPage } from './TasksPage'
@@ -26,6 +29,8 @@ import { TasksPage } from './TasksPage'
 
   Routes:
     /login, /signup                    public (signed-in users are sent on to the app)
+    /forgot-password, /reset-password  password reset (M8)
+    /email-verified                    where the confirmation email's link lands (M8)
     /app, /app/projects/:projectId     only for signed-in users (RequireAuth)
 */
 
@@ -51,6 +56,9 @@ export default function DashboardApp({ repository, authClient, queryClient }: Da
             <Routes>
               <Route path="login" element={<LoginPage />} />
               <Route path="signup" element={<SignupPage />} />
+              <Route path="forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="reset-password" element={<ResetPasswordPage />} />
+              <Route path="email-verified" element={<EmailVerifiedPage />} />
               <Route
                 path="app"
                 element={

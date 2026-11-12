@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 // vitest/config re-exports Vite's defineConfig and adds types for the `test` block.
 import { defineConfig } from 'vitest/config'
 
+const webPort = Number(process.env.WEB_PORT ?? 5173)
+const apiTarget = `http://127.0.0.1:${process.env.API_PORT ?? 8787}`
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -12,8 +15,9 @@ export default defineConfig({
   // The app must run at the origin the API trusts (APP_ORIGIN, default http://localhost:5173):
   // strictPort makes Vite stop with an error instead of quietly moving to another port,
   // which the API's CSRF check would (rightly) refuse.
-  server: { port: 5173, strictPort: true, proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
-  preview: { port: 5173, strictPort: true, proxy: { '/api': { target: 'http://127.0.0.1:8787', xfwd: true } } },
+  // WEB_PORT and API_PORT exist for the end-to-end tests, which run on their own ports.
+  server: { port: webPort, strictPort: true, proxy: { '/api': { target: apiTarget, xfwd: true } } },
+  preview: { port: webPort, strictPort: true, proxy: { '/api': { target: apiTarget, xfwd: true } } },
   test: {
     // Half the CPU cores: each worker runs its own jsdom or database, and with every core busy,
     // machines with little memory (e.g. a default WSL setup) start swapping and tests time out.

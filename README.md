@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, and (soon) use AI to turn a complex goal into a concrete plan. Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M7 are complete: user accounts with secure sessions, and a dashboard on a Hono API with a Neon PostgreSQL database. Next up: hardening (M8). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
+> **Status:** 🚧 In development. M1–M8 are complete: secure accounts (email confirmation, password reset), a dashboard on a Hono API with a Neon PostgreSQL database, and end-to-end tests. Next up: AI Task Breakdown (M9). The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
 
 ## Features
 
@@ -13,7 +13,7 @@ A full-stack productivity app for students, developers and professionals: organi
 - **Accessibility**: skip link, landmarks, full keyboard support, visible focus and WCAG AA contrast (Lighthouse Accessibility 100)
 - **CI**: lint, typecheck, tests and build run on every pull request (GitHub Actions)
 - **Domain logic**: Zod schemas and pure, fully tested functions for projects, tasks, subtasks, deadlines, statistics, search, filtering and sorting
-- **Accounts**: sign up, sign in and sign out with email and password (Better Auth). Sessions are stored in the database, in HttpOnly SameSite cookies, and last 7 days. CSRF protection, brute-force rate limiting, and tests proving that users can never see or change each other's data.
+- **Accounts**: sign up with email confirmation, sign in, sign out and reset a forgotten password (Better Auth). In development, emails are printed in the API terminal. Sessions are stored in the database, in HttpOnly SameSite cookies, and last 7 days. CSRF protection, brute-force rate limiting, and tests proving that users can never see or change each other's data.
 - **Dashboard** (`/app`): projects with a default Inbox; tasks with statuses, priorities and deadlines; subtask checklists; progress statistics; search, filters and sorting kept in the URL; accessible dialogs with confirmation before deleting. Data is stored in PostgreSQL through the API.
 - **API and database**: a Hono REST API with Neon PostgreSQL and Drizzle ORM (committed migrations, database constraints as a second line of defence), consistent JSON errors, and tests proving users can't see or change each other's data. Development uses a Neon development branch; automated tests run offline on PGlite (PostgreSQL in WebAssembly).
 
@@ -54,7 +54,7 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [x] M5: Functional dashboard (local data, async repository)
 - [x] M6: Backend & database (Hono, PostgreSQL, Drizzle)
 - [x] M7: Authentication & security (Better Auth, user isolation)
-- [ ] M8: Hardening (password reset, end-to-end tests, security review)
+- [x] M8: Hardening (password reset, end-to-end tests, security review)
 - [ ] M9: AI Task Breakdown
 - [ ] M10: Complete visual redesign (landing page and dashboard)
 - [ ] M11: Final testing & public deployment (Vercel, production database, email provider)
@@ -92,6 +92,7 @@ Open the app at **http://localhost:5173** (`127.0.0.1:5173` works too). `npm run
 | `npm run test:coverage` | Run all tests with a coverage report (`coverage/index.html`) |
 | `npm run db:generate` | Create a migration after changing `server/db/schema.ts` |
 | `npm run db:migrate` | Apply pending migrations to the configured database (the only way migrations run; production needs `-- --confirm-production=<branch-id>`) |
+| `npm run test:e2e` | End-to-end tests in a real browser (Playwright; isolated temporary database). First time: `npx playwright install --with-deps chromium` |
 | `npm run test:neon` | Optional: run the repository tests against the Neon development branch (cleans up after itself) |
 
 ## What I'm Learning

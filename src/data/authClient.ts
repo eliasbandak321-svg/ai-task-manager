@@ -32,6 +32,21 @@ export const signUpInputSchema = z.strictObject({
     .max(LIMITS.passwordMax, `Password must be at most ${LIMITS.passwordMax} characters`),
 })
 
+const newPasswordSchema = z
+  .string()
+  .min(LIMITS.passwordMin, `Password must be at least ${LIMITS.passwordMin} characters`)
+  .max(LIMITS.passwordMax, `Password must be at most ${LIMITS.passwordMax} characters`)
+
+export const requestPasswordResetInputSchema = z.strictObject({ email: emailSchema })
+
+/** The reset form: the new password twice, to catch typos. */
+export const resetPasswordFormSchema = z
+  .strictObject({ password: newPasswordSchema, confirmPassword: z.string() })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: 'The passwords don’t match',
+    path: ['confirmPassword'],
+  })
+
 export const signInInputSchema = z.strictObject({
   email: emailSchema,
   password: z.string().min(1, 'Password is required').max(LIMITS.passwordMax, 'Password is too long'),
@@ -39,6 +54,11 @@ export const signInInputSchema = z.strictObject({
 
 export type SignUpInput = z.input<typeof signUpInputSchema>
 export type SignInInput = z.input<typeof signInInputSchema>
+export type RequestPasswordResetInput = z.input<typeof requestPasswordResetInputSchema>
+export interface ResetPasswordInput {
+  token: string
+  newPassword: string
+}
 
 /** The signed-in user, as the UI sees them. */
 export const sessionUserSchema = z.object({ id: z.string(), name: z.string(), email: z.string() })
@@ -47,9 +67,18 @@ export type SessionUser = z.infer<typeof sessionUserSchema>
 export interface AuthClient {
   /** The signed-in user, or null when signed out. */
   getSession(): Promise<SessionUser | null>
-  signUp(input: SignUpInput): Promise<SessionUser>
+  /**
+   * Creates the account and sends a confirmation email. Resolves the same way whether or not
+   * the email was already registered (no account enumeration); there is no session yet.
+   */
+  signUp(input: SignUpInput): Promise<void>
+  /** Fails with AUTH_MESSAGES.emailNotVerified (and re-sends the link) until confirmed. */
   signIn(input: SignInInput): Promise<SessionUser>
   signOut(): Promise<void>
+  /** Sends a reset link if the account exists; resolves the same way either way. */
+  requestPasswordReset(input: RequestPasswordResetInput): Promise<void>
+  /** Sets a new password with the token from the reset link; signs out all sessions. */
+  resetPassword(input: ResetPasswordInput): Promise<void>
 }
 
 /** A sign-up, sign-in or sign-out that failed, with a message for people. */
@@ -62,6 +91,8 @@ export class AuthError extends RepositoryError {
 
 export const AUTH_MESSAGES = {
   invalidCredentials: 'Incorrect email or password.',
+  emailNotVerified: 'Please confirm your email address first. We’ve sent you a new confirmation link.',
+  invalidResetLink: 'This reset link is invalid or has expired. Please request a new one.',
   emailTaken: 'An account with this email already exists. Sign in instead.',
   tooManyAttempts: 'Too many attempts. Please wait a minute and try again.',
   blocked: 'This request was blocked for your security. Reload the page and try again.',
@@ -71,15 +102,24 @@ export const AUTH_MESSAGES = {
 
 const userResponseSchema = z.object({ user: sessionUserSchema })
 const sessionResponseSchema = z.object({ user: sessionUserSchema }).nullable()
-const errorResponseSchema = z.object({ message: z.string().optional() }).loose()
+const errorResponseSchema = z.object({ message: z.string().optional(), code: z.string().optional() }).loose()
 const apiErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
+
+/** Where links in emails send the browser back to (pages of this app). */
+const CALLBACK_PATHS = { emailVerified: '/email-verified', resetPassword: '/reset-password' } as const
 
 export class HttpAuthClient implements AuthClient {
   private readonly baseUrl: string
+  private readonly appOrigin: string
   private readonly fetchImpl: typeof globalThis.fetch
 
-  constructor({ baseUrl = '/api/auth', fetch = (...args) => globalThis.fetch(...args) }: { baseUrl?: string; fetch?: typeof globalThis.fetch } = {}) {
+  constructor({
+    baseUrl = '/api/auth',
+    appOrigin = (globalThis as { location?: { origin: string } }).location?.origin ?? '',
+    fetch = (...args) => globalThis.fetch(...args),
+  }: { baseUrl?: string; appOrigin?: string; fetch?: typeof globalThis.fetch } = {}) {
     this.baseUrl = baseUrl
+    this.appOrigin = appOrigin
     this.fetchImpl = fetch
   }
 
@@ -90,18 +130,32 @@ export class HttpAuthClient implements AuthClient {
     return parsed.data ? pickUser(parsed.data.user) : null
   }
 
-  async signUp(input: SignUpInput): Promise<SessionUser> {
-    const body = signUpInputSchema.parse(input)
-    return this.userFrom(await this.request('POST', '/sign-up/email', body))
+  async signUp(input: SignUpInput): Promise<void> {
+    const body = { ...signUpInputSchema.parse(input), callbackURL: CALLBACK_PATHS.emailVerified }
+    await this.request('POST', '/sign-up/email', body)
   }
 
   async signIn(input: SignInInput): Promise<SessionUser> {
-    const body = { ...signInInputSchema.parse(input), rememberMe: true }
+    // callbackURL: where the confirmation link (re-sent for unconfirmed accounts) leads.
+    const body = { ...signInInputSchema.parse(input), rememberMe: true, callbackURL: CALLBACK_PATHS.emailVerified }
     return this.userFrom(await this.request('POST', '/sign-in/email', body))
   }
 
   async signOut(): Promise<void> {
     await this.request('POST', '/sign-out', {})
+  }
+
+  async requestPasswordReset(input: RequestPasswordResetInput): Promise<void> {
+    const { email } = requestPasswordResetInputSchema.parse(input)
+    await this.request('POST', '/request-password-reset', {
+      email,
+      redirectTo: `${this.appOrigin}${CALLBACK_PATHS.resetPassword}`,
+    })
+  }
+
+  async resetPassword({ token, newPassword }: ResetPasswordInput): Promise<void> {
+    newPasswordSchema.parse(newPassword)
+    await this.request('POST', '/reset-password', { token, newPassword })
   }
 
   private userFrom(json: unknown): SessionUser {
@@ -135,6 +189,9 @@ function pickUser(user: SessionUser): SessionUser {
 }
 
 function toAuthError(status: number, json: unknown): AuthError {
+  const betterAuthCode = errorResponseSchema.safeParse(json).data?.code
+  if (betterAuthCode === 'EMAIL_NOT_VERIFIED') return new AuthError(AUTH_MESSAGES.emailNotVerified)
+  if (betterAuthCode === 'INVALID_TOKEN') return new AuthError(AUTH_MESSAGES.invalidResetLink)
   if (status === 401) return new AuthError(AUTH_MESSAGES.invalidCredentials)
   if (status === 422) return new AuthError(AUTH_MESSAGES.emailTaken)
   if (status === 429) return new AuthError(AUTH_MESSAGES.tooManyAttempts)
@@ -144,7 +201,8 @@ function toAuthError(status: number, json: unknown): AuthError {
     return new AuthError(apiError?.code === 'FORBIDDEN_ORIGIN' ? apiError.message : AUTH_MESSAGES.blocked)
   }
   if (status >= 400 && status < 500) {
-    const message = errorResponseSchema.safeParse(json).data?.message
+    // Better Auth's errors ({ message }) and our API's ({ error: { message } }) are written for people.
+    const message = errorResponseSchema.safeParse(json).data?.message ?? apiErrorSchema.safeParse(json).data?.error.message
     if (message) return new AuthError(message)
   }
   return new AuthError(AUTH_MESSAGES.server, { cause: status })

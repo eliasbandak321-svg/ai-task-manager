@@ -12,7 +12,9 @@ import { pendingMigrations } from './migrations'
   4. Show what will be applied, apply it, and report.
 */
 
-if (existsSync('.env')) process.loadEnvFile('.env')
+// ENV_FILE lets the end-to-end tests use their own settings and never read .env (Neon).
+const envFile = process.env.ENV_FILE ?? '.env'
+if (existsSync(envFile)) process.loadEnvFile(envFile)
 const env = loadEnv(process.env)
 assertMigrationAllowed(env, process.argv.slice(2))
 

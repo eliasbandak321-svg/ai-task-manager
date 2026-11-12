@@ -18,6 +18,7 @@ export function LoginPage() {
   const [values, setValues] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({})
   const [formError, setFormError] = useState<string | null>(null)
+  const passwordWasReset = params.get('reset') === 'success'
 
   if (session.data) return <Navigate to={next} replace />
 
@@ -53,6 +54,11 @@ export function LoginPage() {
         </>
       }
     >
+      {passwordWasReset && (
+        <output className="mt-4 block rounded-control border border-status-done/40 bg-raised p-3 text-sm text-ink">
+          Your password has been changed. Sign in with your new password.
+        </output>
+      )}
       <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
         <Field label="Email" error={errors.email}>
           {(control) => (
@@ -78,6 +84,11 @@ export function LoginPage() {
             />
           )}
         </Field>
+        <p className="-mt-2 text-right text-sm">
+          <Link to="/forgot-password" className="text-glow hover:text-glow-strong">
+            Forgot your password?
+          </Link>
+        </p>
         {formError && (
           <p role="alert" className="text-sm text-danger">
             {formError}

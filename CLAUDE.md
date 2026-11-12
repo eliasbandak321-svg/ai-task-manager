@@ -73,6 +73,7 @@ Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Contro
 - `npm test`: run Vitest in watch mode
 - `npm run test:run`: run all tests once
 - `npm run test:coverage`: tests with a coverage report (`coverage/index.html`)
+- `npm run test:e2e`: Playwright end-to-end tests (production build + API on a temporary PGlite database, reads `e2e/.env.e2e`, never `.env`)
 - `npm run db:generate`: create a migration in `drizzle/` after changing `server/db/schema.ts` (never edit the database by hand)
 - `npm run db:migrate`: the only way migrations are applied (servers never migrate; they refuse to start with pending migrations). `npm run dev` runs it once per session. Production requires `-- --confirm-production=<NEON_BRANCH_ID>`
 - `npm run dev:offline`: run the app on the embedded PGlite database instead of Neon

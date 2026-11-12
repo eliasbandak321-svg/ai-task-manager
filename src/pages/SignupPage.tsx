@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 import { AuthCard } from '../components/auth/AuthCard'
 import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
@@ -12,14 +12,42 @@ import { safeNextPath } from '../lib/redirect'
 export function SignupPage() {
   const [params] = useSearchParams()
   const next = safeNextPath(params.get('next'))
-  const navigate = useNavigate()
   const session = useSession()
   const signUp = useSignUp()
   const [values, setValues] = useState({ name: '', email: '', password: '' })
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({})
   const [formError, setFormError] = useState<string | null>(null)
+  const [sentTo, setSentTo] = useState<string | null>(null)
 
   if (session.data) return <Navigate to={next} replace />
+
+  if (sentTo) {
+    // Shown for every sign-up, also when the email already has an account (no enumeration).
+    return (
+      <AuthCard
+        title="Check your email"
+        description="One more step to activate your account."
+        footer={
+          <Link to="/login" className="font-semibold text-glow hover:text-glow-strong">
+            Back to sign in
+          </Link>
+        }
+      >
+        <div aria-live="polite" className="mt-6 space-y-3 text-sm text-ink-muted">
+          <p>
+            We’ve sent a confirmation link to <strong className="text-ink">{sentTo}</strong>. Open it to activate your
+            account and sign in.
+          </p>
+          <p>The link expires in 24 hours. Can’t find it? Check your spam folder, or sign in to get a new link.</p>
+          {import.meta.env.DEV && (
+            <p className="rounded-control border border-line bg-raised p-3 text-ink-subtle">
+              Development: emails aren’t sent yet. The link is printed in the terminal running the API.
+            </p>
+          )}
+        </div>
+      </AuthCard>
+    )
+  }
 
   const set = (field: keyof typeof values) => (value: string) => setValues((current) => ({ ...current, [field]: value }))
 
@@ -34,7 +62,7 @@ export function SignupPage() {
     setErrors({})
     try {
       await signUp.mutateAsync(parsed.data)
-      navigate(next, { replace: true })
+      setSentTo(parsed.data.email)
     } catch (error) {
       setFormError(errorMessage(error))
     }

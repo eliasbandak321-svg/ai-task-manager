@@ -246,7 +246,8 @@ The dashboard prioritises function, usability and accessibility. It reuses the l
 
 ### Still to come
 
-- **Auth screens (M7):** `/login` and `/signup` — a centred card with the wordmark, labelled fields with inline validation, one primary button, a link to the other page, and errors announced in an alert. Signed-out visitors to `/app` are sent to `/login` and returned afterwards. Password reset follows in M8.
+- **Auth screens (M7):** `/login` and `/signup` — a centred card with the wordmark, labelled fields with inline validation, one primary button, a link to the other page, and errors announced in an alert. Signed-out visitors to `/app` are sent to `/login` and returned afterwards.
+- **Account emails (M8):** sign-up and "forgot password" end on a "Check your email" card that reads the same whether or not the email has an account. `/reset-password` (new password twice) and `/email-verified` show a clear card for invalid or expired links, with a way to get a new one. The login page has a "Forgot your password?" link and confirms a successful reset.
 - **AI Task Breakdown** (M9) and the complete visual redesign of the landing page and dashboard (M10).
 
 ## 11. Resolved questions

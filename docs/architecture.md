@@ -174,16 +174,54 @@ In the browser, `src/data/authClient.ts` (`HttpAuthClient`) wraps these endpoint
 |---|---|
 | **Authentication** | Better Auth (M7): email and password, sessions stored in the database. The session cookie is `HttpOnly` (JavaScript, and so XSS, can't read it), `SameSite=Lax`, `Path=/`, lasts 7 days and is extended while in use, and is `Secure` with the `__Secure-` prefix in production (HTTPS required by configuration). Signing out deletes the session server-side, so a copied cookie stops working. Signed with `BETTER_AUTH_SECRET`. |
 | **CSRF** | Three layers: `SameSite=Lax` cookies; an Origin check on every POST, PUT, PATCH and DELETE (requests from untrusted origins get `403` and are logged; `Sec-Fetch-Site` covers requests without Origin), plus Better Auth's own trusted-origin check, both using the same list (`trustedOrigins` in `server/env.ts`): in production exactly `APP_ORIGIN`; in development with a local `APP_ORIGIN` also the other names of this computer (`localhost`, `127.0.0.1`, `[::1]`) on the same scheme and port, because tools open the dev server under either name; and JSON-only request bodies, which HTML forms on other sites can't send. |
-| **Account enumeration** | A wrong password and an unknown email get the same answer. (Sign-up does reveal that an email is taken; acceptable for now, reviewed in M8.) |
+| **Email verification** | Required (M8). Sign-up creates the account and emails a confirmation link (24 hours); signing in to an unconfirmed account fails and sends a fresh link. Opening the link confirms the address and starts a session once; the link can't be reused to sign in. |
+| **Account enumeration** | Sign-in, sign-up and password reset answer the same way whether or not the email is registered. Signing up with a registered email sends its owner a "someone tried to sign up" notice instead. Emails are sent in the background, so response times don't reveal it either. |
 | **User isolation** | The user ID comes **only from the session**, never from the request body or URL. Every query is scoped with `where userId = currentUser`. |
 | **Isolation tests** | Each resource has tests proving user A cannot read, update or delete user B's data. |
 | **Not found, not forbidden** | Another user's resource returns `404`, so the API doesn't reveal that it exists. |
 | **Input validation** | Every request body and query parameter is parsed with Zod; anything else is rejected with `400`. |
-| **Rate limiting** | Sign-in and sign-up: 5 attempts per minute per IP address, other auth endpoints 100 per minute (Better Auth, stored in the `rate_limit` table). The client IP comes from `X-Forwarded-For`, set by the proxy in front of the API (Vite in development; the host in production, configured in M11). The AI endpoint gets a daily quota per user (M9). |
+| **Rate limiting** | Per client IP, stored in the `rate_limit` table: sign-in and sign-up 5 per minute, password-reset and verification emails 3 per minute, setting a new password 5 per minute, other auth endpoints 100 per minute. The AI endpoint gets a daily quota per user (M9). |
+| **Client IP** | Read from `CLIENT_IP_HEADER` (default `X-Forwarded-For`). Entries added by `TRUSTED_PROXIES` (our own proxies; in development this computer, i.e. the Vite proxy) are stripped from the right; the first untrusted address is the client. Addresses a client writes into the header itself are never trusted. Production refuses to start without an explicit setting (see the M11 checklist). |
+| **Redirects** | Every `redirectTo` / `callbackURL` sent to `/api/auth/*` (body or query, any method) must be a path on this site or a trusted origin; otherwise `400 UNSAFE_REDIRECT`. Better Auth checks this too, and its checks are forced on even in tests. |
 | **Secrets** | Only in environment variables, never committed. Only `VITE_`-prefixed variables reach the browser, so secrets must never use that prefix. The Neon connection string lives in the git-ignored `.env` (file mode 600) and is never logged: the API prints only the verified branch ID. Connections use `sslmode=verify-full`. |
-| **Passwords** | 8–128 characters, hashed by Better Auth with salted scrypt; never stored or logged in plain text. Password reset is built in M8. Locally, reset emails are logged to the console; a real email provider is connected in M11 (with approval). |
+| **Passwords** | 8–128 characters, hashed by Better Auth with salted scrypt; never stored or logged in plain text. **Reset (M8):** a random single-use token, valid 15 minutes, delivered by email; using it signs the account out on every device. Reset links may only point to this app (redirect check), and requests are rate limited. |
 | **AI output** | Treated as untrusted data. It is validated, shown to the user as a draft, and saved only after explicit approval. |
 | **Release gate** | Nothing is deployed publicly before M11. The release requires the M7–M8 auth, isolation and security checks to pass. |
+
+### Security audit (M8)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 1 | **Better Auth silently disables its origin, redirect and CSRF checks in test environments.** Our tests therefore verified weaker behaviour than production; with the checks off, a password-reset request with an attacker's `redirectTo` produced an email whose link sent the reset token to the attacker (password-reset poisoning). The real server was not affected (verified: `403 INVALID_REDIRECT_URL`). | High (test gap; would hide regressions) | Fixed: checks forced on (`disableOriginCheck: false`, `disableCSRFCheck: false`), plus our own redirect check for all methods; regression tests |
+| 2 | **Multi-hop `X-Forwarded-For` without trusted proxies → one shared rate-limit bucket.** Better Auth then trusts no address and, in production, puts every client in one bucket: five failed sign-ins per minute from anyone would lock everyone out. | High (production) | Fixed: `CLIENT_IP_HEADER` / `TRUSTED_PROXIES`, this computer trusted in development, production refuses to start without explicit configuration; tests prove a faked header can't dodge the limit |
+| 3 | **Sign-up revealed whether an email is registered** (`422 already exists`). | Medium | Fixed: email verification required; identical sign-up responses; owner notified |
+| 4 | Password reset: tokens, expiry, single use, session revocation, enumeration, timing, rate limits | — | Implemented and tested (server, client and end-to-end) |
+| 5 | Sessions, cookies, CSRF, authorization, user isolation (M7) | — | Re-audited; added tests for expired sessions, the raw session token not authenticating, and reusing confirmation links |
+
+**Accepted for now (revisit later):**
+- Rate limits are per IP, not per account; a distributed attack on one account isn't slowed by them. Candidates: per-email limits, a CAPTCHA after repeated failures.
+- No list of active sessions or "sign out everywhere" button; a password reset does sign out everywhere.
+- No check against known breached passwords (would need an external service; ask before adding).
+- Response *timing* of sign-in for unknown vs known emails is Better Auth's; only the responses themselves are tested to be identical.
+
+### M11 deployment checklist (security)
+
+Production **refuses to start** until the items marked ⛔ are done (`server/env.ts`). Reviewed at the end of M8.
+
+| Item | What to set |
+|---|---|
+| ⛔ Production mode | `NODE_ENV=production`. Every production safeguard (one trusted origin, `Secure` cookies, required email provider and client-IP settings, no PGlite, migrations need confirmation) keys off it |
+| ⛔ HTTPS origin | `APP_ORIGIN=https://…` on the public domain (cookies become `Secure` with the `__Secure-` prefix; links in confirmation and reset emails are built from it) |
+| ⛔ Email provider | A real `Mailer` (e.g. SMTP or an email API) and its secrets; `MAIL_TRANSPORT=console/file` is rejected |
+| ⛔ Client IP | On Vercel: `CLIENT_IP_HEADER=x-real-ip` (or `x-vercel-forwarded-for`), which Vercel sets itself; or `TRUSTED_PROXIES` for the proxies in front of the API. Verify with a test request that limits are per client |
+| ⛔ Database | `DATABASE_PROVIDER=neon`, the **production** branch's `DATABASE_URL` and `NEON_BRANCH_ID`; migrations run as a deliberate release step (`--confirm-production=<branch>`) |
+| Secret | A new `BETTER_AUTH_SECRET` (never reuse the development one) |
+| Email sender | `MAIL_FROM` on a domain with SPF/DKIM/DMARC configured |
+| Static site headers | CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy` for the SPA (the API already sends security headers) in `vercel.json` |
+| Rate limit table | Schedule cleanup of old `rate_limit` rows. Keys include the request path, and for reset links that path contains the (single-use, 15-minute) token, so rows accumulate per link |
+| Keep checks on | Never set `disableOriginCheck` / `disableCSRFCheck`, or loosen the redirect check in `server/app.ts`; they're forced on deliberately (M8 audit, finding 1) |
+| Separate data | Never copy development data (Neon `development` branch, `.backups/`, PGlite) into production; production starts empty from the migrations |
+| Re-run | `npm run test:e2e` against a preview deployment, and the isolation tests |
 
 ## 7. AI Task Breakdown flow *(M9)*
 
@@ -202,7 +240,7 @@ A single server endpoint, with no agents or orchestration: the feature doesn't n
 | Domain logic | Vitest | Status transitions, statistics, search, filtering, sorting, deadline rules: pure functions, test-first |
 | Components | Vitest + React Testing Library | User-visible behaviour, accessibility queries (`getByRole`) |
 | API | Vitest + PGlite | Each endpoint: validation, ownership, isolation between users |
-| End to end | Playwright (M8) | Sign up, create a project and a task, complete it, see progress |
+| End to end | Playwright (M8), `npm run test:e2e` | Registration with email confirmation, login, logout, password reset, sessions ending elsewhere, projects/tasks/subtasks, isolation between users, error states, phone layouts. Production build + real API on a temporary PGlite database; also in CI |
 | AI | Vitest with a mocked model response | Validation, draft handling, quota; no real API calls in CI |
 
 CI (GitHub Actions) runs lint, typecheck, tests and the build on every pull request and every push to `main`.
@@ -286,6 +324,11 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-11 | M6: the API only accepts JSON bodies | Plain HTML forms on other sites can't send JSON, a first CSRF safeguard before cookies arrive in M7 |
 | 2026-11-11 | M7: Better Auth with the Drizzle adapter, UUID ids, database sessions and database rate limiting; the development user is gone | Real accounts with no paid service, data in our own Neon database; the M6 `user` table was already in Better Auth's shape, so the migration only adds tables |
 | 2026-11-11 | M7: an Origin check on all state-changing requests, on top of SameSite cookies and JSON-only bodies | Defence in depth against CSRF now that the API is authenticated by cookies |
+| 2026-11-11 | M8: email verification required; identical answers for sign-up and reset | Prevents account enumeration (decided with the developer); also proves the address before it receives reset links |
+| 2026-11-11 | M8: development email via console or files behind a `Mailer` interface | No paid service now; M11 plugs in a provider without touching auth code; production refuses development transports |
+| 2026-11-11 | M8: Better Auth's security checks forced on in every environment; our own redirect check for `/api/auth/*` | Better Auth turns them off under tests, which hid a reset-redirect flaw from the test suite |
+| 2026-11-11 | M8: client IP from a configurable header with trusted proxies; production must configure it | Without it, a proxy chain makes every client share one rate-limit bucket |
+| 2026-11-11 | M8: Playwright end-to-end tests against the production build, on a temporary PGlite database, in CI | Full user flows in a real browser, isolated from Neon and from local development |
 | 2026-11-11 | M7 fix: in development, trust all loopback names of the dev server's origin; Vite's port is fixed (`strictPort`) | Sign-up failed with 403 when the app was opened at `127.0.0.1:5173` instead of `localhost:5173` (same computer, different origin). Production still trusts exactly one origin |
 | 2026-11-11 | M7: the UI cache is cleared on every sign-in, sign-up and sign-out | Prevents one user's cached data from flashing up for the next user of the same browser |
 | 2026-11-11 | M6: a `user` table shaped like Better Auth's, plus a development user | M7 plugs in real accounts without a data migration; the development user can't run in production |

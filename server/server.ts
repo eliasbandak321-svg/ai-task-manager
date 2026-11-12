@@ -1,14 +1,19 @@
 import { createApp } from './app'
 import { createAuth, sessionUser } from './auth'
 import type { Database } from './db/client'
-import { trustedOrigins, type Env } from './env'
+import { trustedOrigins, trustedProxies, type Env } from './env'
+import { createMailer, type Mailer } from './mail'
 
 /**
  * Builds the complete server — authentication and API — from the configuration.
  * server/dev.ts runs exactly this, and the tests do too, so what's tested is what runs
  * (including which origins are trusted).
  */
-export function buildServer(env: Env, db: Database, { rateLimit = true }: { rateLimit?: boolean } = {}) {
+export function buildServer(
+  env: Env,
+  db: Database,
+  { rateLimit = true, mailer = createMailer(env) }: { rateLimit?: boolean; mailer?: Mailer } = {},
+) {
   const origins = trustedOrigins(env)
   const auth = createAuth({
     db,
@@ -17,6 +22,9 @@ export function buildServer(env: Env, db: Database, { rateLimit = true }: { rate
     trustedOrigins: origins,
     secureCookies: env.NODE_ENV === 'production',
     rateLimit,
+    mailer,
+    clientIpHeader: env.CLIENT_IP_HEADER,
+    trustedProxies: trustedProxies(env),
   })
   const app = createApp({
     db,
@@ -25,5 +33,5 @@ export function buildServer(env: Env, db: Database, { rateLimit = true }: { rate
     explainBlockedOrigins: env.NODE_ENV !== 'production',
     authHandler: auth.handler,
   })
-  return { app, auth, origins }
+  return { app, auth, origins, mailer }
 }

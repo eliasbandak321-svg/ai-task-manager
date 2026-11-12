@@ -3,6 +3,7 @@ import { AUTH_MESSAGES, AuthError, HttpAuthClient } from '../src/data/authClient
 import { HttpRepository } from '../src/data/httpRepository'
 import { createApp } from './app'
 import { createAuth, sessionUser } from './auth'
+import { MemoryMailer } from './mail'
 import { setupTestDatabase } from './test/testDatabase'
 
 /*
@@ -18,12 +19,15 @@ let counter = 0
 const uniqueEmail = () => `client-${(counter += 1)}-${Date.now()}@example.test`
 
 function browser({ rateLimit = false } = {}) {
+  const mailer = new MemoryMailer()
   const auth = createAuth({
     db: database(),
     secret: 'test-secret-that-is-at-least-32-characters-long',
     appOrigin: ORIGIN,
     secureCookies: false,
     rateLimit,
+    mailer,
+    trustedProxies: ['127.0.0.1'],
   })
   const app = createApp({ db: database(), resolveUserId: sessionUser(auth), trustedOrigins: [ORIGIN], authHandler: auth.handler })
   const jar = new Map<string, string>()
@@ -44,21 +48,32 @@ function browser({ rateLimit = false } = {}) {
     return response
   }
 
+  /** Opens a link from an email, like clicking it in the same browser (no redirect following). */
+  const openLink = (link: string | undefined) => fetchWithCookies(link ?? 'http://localhost:5173/missing', { redirect: 'manual' })
+
   return {
-    authClient: new HttpAuthClient({ fetch: fetchWithCookies }),
+    mailer,
+    openLink,
+    authClient: new HttpAuthClient({ fetch: fetchWithCookies, appOrigin: ORIGIN }),
     repository: new HttpRepository({ fetch: fetchWithCookies }),
   }
 }
 
 describe('HttpAuthClient with the real server', () => {
-  it('signs up, keeps the session, reaches the API, signs out and back in', async () => {
-    const { authClient, repository } = browser()
+  it('signs up, confirms the email, keeps the session, reaches the API, signs out and back in', async () => {
+    const { authClient, repository, mailer, openLink } = browser()
     const email = uniqueEmail()
 
     expect(await authClient.getSession()).toBeNull()
-    const user = await authClient.signUp({ name: ' Grace ', email: email.toUpperCase(), password: PASSWORD })
+    await authClient.signUp({ name: ' Grace ', email: email.toUpperCase(), password: PASSWORD })
+    expect(await authClient.getSession()).toBeNull() // not signed in until the email is confirmed
+
+    await expect(authClient.signIn({ email, password: PASSWORD })).rejects.toEqual(new AuthError(AUTH_MESSAGES.emailNotVerified))
+    const confirmed = await openLink(mailer.latestTo(email)?.link)
+    expect(confirmed.headers.get('location')).toBe('/email-verified')
+
+    const user = await authClient.getSession()
     expect(user).toEqual({ id: expect.any(String), name: 'Grace', email })
-    expect(await authClient.getSession()).toEqual(user)
     expect((await repository.listProjects()).map((project) => project.name)).toEqual(['Inbox'])
 
     await authClient.signOut()
@@ -69,18 +84,41 @@ describe('HttpAuthClient with the real server', () => {
     expect(await repository.listProjects()).toHaveLength(1)
   })
 
-  it('turns server errors into clear messages', async () => {
-    const { authClient } = browser()
+  it('resets a forgotten password through the emailed link', async () => {
+    const { authClient, mailer, openLink } = browser()
     const email = uniqueEmail()
     await authClient.signUp({ name: 'Ada', email, password: PASSWORD })
+    await openLink(mailer.latestTo(email)?.link)
+    await authClient.signOut()
+
+    // Same answer for an unknown email.
+    await expect(authClient.requestPasswordReset({ email: uniqueEmail() })).resolves.toBeUndefined()
+    await authClient.requestPasswordReset({ email })
+    const opened = await openLink(mailer.latestTo(email)?.link)
+    const landing = new URL(opened.headers.get('location') ?? '', ORIGIN)
+    expect(landing.pathname).toBe('/reset-password')
+    const token = landing.searchParams.get('token') ?? ''
+
+    await expect(authClient.resetPassword({ token: 'forged', newPassword: 'a new passphrase' })).rejects.toEqual(
+      new AuthError(AUTH_MESSAGES.invalidResetLink),
+    )
+    await authClient.resetPassword({ token, newPassword: 'a new passphrase' })
+    await expect(authClient.signIn({ email, password: PASSWORD })).rejects.toEqual(new AuthError(AUTH_MESSAGES.invalidCredentials))
+    expect(await authClient.signIn({ email, password: 'a new passphrase' })).toMatchObject({ email })
+  })
+
+  it('turns server errors into clear messages, without revealing registered emails', async () => {
+    const { authClient, mailer, openLink } = browser()
+    const email = uniqueEmail()
+    await authClient.signUp({ name: 'Ada', email, password: PASSWORD })
+    await openLink(mailer.latestTo(email)?.link)
     await authClient.signOut()
 
     await expect(authClient.signIn({ email, password: 'wrong password' })).rejects.toEqual(
       new AuthError(AUTH_MESSAGES.invalidCredentials),
     )
-    await expect(authClient.signUp({ name: 'Ada again', email, password: PASSWORD })).rejects.toEqual(
-      new AuthError(AUTH_MESSAGES.emailTaken),
-    )
+    // Signing up again with a registered email looks exactly like a new sign-up.
+    await expect(authClient.signUp({ name: 'Ada again', email, password: PASSWORD })).resolves.toBeUndefined()
   })
 
   it('reports rate limiting', async () => {

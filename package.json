@@ -18,6 +18,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:neon": "RUN_NEON_TESTS=1 vitest run --project server server/db/neon.test.ts",
+    "test:e2e": "playwright test",
     "preview": "vite preview",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx server/db/migrate.ts"
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite-socket": "^0.2.15",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

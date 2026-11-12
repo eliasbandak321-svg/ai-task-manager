@@ -36,7 +36,8 @@ describe('assertMigrationAllowed', () => {
   })
 
   it('refuses production without an explicit confirmation naming the exact branch', () => {
-    const production = loadEnv({ ...base, NODE_ENV: 'production' })
+    // Built directly: loadEnv refuses production until a real email provider exists (M11).
+    const production = { ...loadEnv(base), NODE_ENV: 'production' as const }
     const expected = 'Refusing to migrate a production database without explicit confirmation'
     expect(() => assertMigrationAllowed(production, [])).toThrow(expected)
     expect(() => assertMigrationAllowed(production, ['--confirm-production=br-other'])).toThrow(expected)
