@@ -8,6 +8,9 @@ import { openDatabase, type DatabaseHandle } from './client'
 import { DbRepository } from './dbRepository'
 import { assertSchemaUpToDate } from './migrations'
 import { users } from './schema'
+import { AiService } from '../ai/aiService'
+import { MockAiProvider } from '../ai/mockProvider'
+import { Workspace } from '../workspace/workspace'
 
 /*
   Opt-in: `npm run test:neon` runs the repository contract against the real Neon development
@@ -58,5 +61,53 @@ describe.skipIf(!enabled)('Neon development branch', () => {
     const task = await alice.createTask({ projectId: inbox.id, title: 'Private' })
     expect(await bob.listTasks()).toEqual([])
     await expect(bob.updateTask(task.id, { title: 'Hacked' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('runs the M9 calendar, scheduling, plan and assistant flows on Neon (demo AI)', async () => {
+    const workspace = new Workspace(handle.db, await newUser())
+    const ai = new AiService(workspace, { provider: new MockAiProvider(), dailyRequestLimit: 50 })
+    await workspace.preferences.save({
+      timeZone: 'Europe/Berlin',
+      useCase: 'student',
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      dayStartMinutes: 0,
+      dayEndMinutes: 1440,
+      focusPeriod: 'none',
+      sessionMinutes: 60,
+      breakMinutes: 0,
+      maxDailyMinutes: 960,
+    })
+
+    const plan = await ai.plan({ goal: 'Neon contract goal' })
+    const applied = await workspace.apply(plan.id, {})
+    expect(applied.status).toBe('applied')
+    await expect(workspace.apply(plan.id, {})).rejects.toMatchObject({ code: 'PROPOSAL_DECIDED' })
+
+    const now = new Date()
+    const series = await workspace.calendar.create({
+      title: 'Standup',
+      category: 'meeting',
+      startAt: new Date(now.getTime() + 86_400_000).toISOString(),
+      endAt: new Date(now.getTime() + 86_400_000 + 900_000).toISOString(),
+      timeZone: 'Europe/Berlin',
+      recurrence: { freq: 'daily', count: 5 },
+    })
+    const week = await workspace.calendar.occurrences(now, new Date(now.getTime() + 8 * 86_400_000))
+    expect(week.filter((o) => o.eventId === series.id)).toHaveLength(5)
+
+    const today = now.toISOString().slice(0, 10)
+    const schedule = await workspace.proposeSchedule({ from: today, to: today })
+    if (schedule.payload.kind === 'schedule' && schedule.payload.items.length > 0) {
+      await workspace.apply(schedule.id, {})
+    }
+
+    const chat = await ai.chat({ message: 'What should I focus on?' })
+    expect(chat.message.source).toBe('mock')
+
+    // Another user sees none of it.
+    const other = new Workspace(handle.db, await newUser())
+    expect(await other.calendar.occurrences(now, new Date(now.getTime() + 8 * 86_400_000))).toEqual([])
+    await expect(other.proposals.get(plan.id)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(await new AiService(other, { provider: new MockAiProvider(), dailyRequestLimit: 50 }).listConversations()).toEqual([])
   })
 })

@@ -53,6 +53,20 @@ Every decision is tagged with where it came from; both kinds are approved:
 | `--color-priority-medium` | `#ffc978` | Medium priority | [Proposed] |
 | `--color-priority-low` | `#a6b0c8` | Low priority | [Proposed] |
 
+### Calendar category colours (M9)
+
+| Token | Value | Category |
+|---|---|---|
+| `--color-category-work` | `#7fd4ff` | Work session |
+| `--color-category-study` | `#b9a7ff` | Study session |
+| `--color-category-meeting` | `#ffc978` | Meeting |
+| `--color-category-focus` | `#6ee7b7` | Focus time |
+| `--color-category-personal` | `#ffa8d2` | Personal |
+| `--color-category-break` | `#c4ccdf` | Break |
+| `--color-category-other` | `#a6b0c8` | Other |
+
+All are light tints with `night` text on top (well above 7:1). The category name is always shown as text too (agenda chips, an `aria-label` on calendar events), never by colour alone. FullCalendar is themed only through its CSS variables mapped to these tokens (`src/index.css`).
+
 The three statuses are To do, In progress and Done **[Approved]**. Colour is never the only signal: statuses and priorities always carry a text label as well **[Proposed]**.
 
 ### Measured contrast (WCAG 2.x)
@@ -214,15 +228,20 @@ The dashboard prioritises function, usability and accessibility. It reuses the l
 
 | URL | Page |
 |---|---|
-| `/app` | All tasks: every task across all projects |
+| `/app` | Dashboard overview (M9): today, upcoming sessions, deadlines, progress, suggestions waiting for approval |
+| `/app/projects` | All tasks: every task across all projects (moved from `/app` in M9) |
 | `/app/projects/:projectId` | One project (the Inbox included) |
+| `/app/calendar` | Calendar, agenda and scheduling (M9) |
+| `/app/assistant`, `/app/assistant/plan` | AI assistant and the plan builder (M9) |
+| `/app/insights`, `/app/settings` | Progress and workload; availability, time zone, use case and AI status (M9) |
 | `/app/...?q=…&status=…&priority=…&due=…&sort=…&dir=…` | Search, filters and sorting live in the URL, so they survive a reload and can be bookmarked |
 | Unknown project or path | A "not found" message with a link back to All tasks |
 
 ### Layout [Decided at the start of M5]
 
 - **Header:** wordmark (links to `/`), the signed-in user's name and email, and a **Sign out** button.
-- **Project navigation:** a sidebar (16 rem) on large screens (≥ 1024 px). On smaller screens it collapses into a full-width "Projects: <current>" button above the content that expands the same list, so the tasks stay at the top of the page. The list shows "All tasks", then the Inbox and the other projects with their completion percentage, plus a "New project" button.
+- **Main navigation (M9):** one row of links under the header — Dashboard, Calendar, Projects, AI Assistant, Insights, Settings — with icons and the current page underlined (`aria-current`). On phones the row scrolls sideways instead of wrapping or overflowing the page.
+- **Project navigation (Projects section only since M9):** a sidebar (16 rem) on large screens (≥ 1024 px). On smaller screens it collapses into a full-width "Projects: <current>" button above the content that expands the same list, so the tasks stay at the top of the page. The list shows "All tasks", then the Inbox and the other projects with their completion percentage, plus a "New project" button.
 - **Page:** the title (`h1`), the actions (New task; Rename and Delete for regular projects only), the statistics panel, the quick-add field, the search and filter toolbar, a live result count, and the task list.
 - **Single column** inside the content area at every width; the task list never scrolls horizontally.
 
@@ -248,7 +267,19 @@ The dashboard prioritises function, usability and accessibility. It reuses the l
 
 - **Auth screens (M7):** `/login` and `/signup` — a centred card with the wordmark, labelled fields with inline validation, one primary button, a link to the other page, and errors announced in an alert. Signed-out visitors to `/app` are sent to `/login` and returned afterwards.
 - **Account emails (M8):** sign-up and "forgot password" end on a "Check your email" card that reads the same whether or not the email has an account. `/reset-password` (new password twice) and `/email-verified` show a clear card for invalid or expired links, with a way to get a new one. The login page has a "Forgot your password?" link and confirms a successful reset.
-- **AI Task Breakdown** (M9) and the complete visual redesign of the landing page and dashboard (M10).
+- The complete visual redesign of the landing page and dashboard (M10).
+
+### M9 workspace [Built in M9; temporary visual design until M10]
+
+| Element | Behaviour |
+|---|---|
+| Calendar | FullCalendar week view on desktop, day view on phones (switchable to day/week/month); "now" line; drag to move, drag the bottom edge to resize, select a range to create. Repeating events show ↻. Moving a repeating event asks "Only this event / This and following / All events" (Cancel puts it back). |
+| Agenda | Below the calendar: every occurrence in the visible range by day, with category chip, linked task and an Edit button — the keyboard and screen-reader alternative to dragging. |
+| Event dialog | Title, start/end, category, linked task, notes, repeat (daily, weekly with weekday chips, monthly; ends never / on a date / after N times). For a repeating event, a scope choice at the top applies to save and delete. |
+| Proposal card | Used for every suggestion: a heading, a source badge (**Demo AI** in amber, **AI** in glow, **Scheduler**), the explanation, each item with a checkbox (moves show old time → new time), what doesn't fit, then **Approve** (or "Approve 2 of 3") and **Dismiss**. Stale or conflicting previews show the reason and "Create a new preview". |
+| Assistant | Conversation list beside the thread; suggestion buttons for a new conversation; user messages right-aligned; assistant messages with a source badge, rendered as plain text; Enter sends, Shift+Enter adds a line; a demo-mode notice while no AI provider is connected. |
+| Plan builder | Goal, details, deadline, hours/week → an editable preview: project name, phases (rename, reorder), tasks (title, priority, estimate, due date, description, subtasks one per line, reorder, remove, add), clarifying questions, "Create project" and "Discard plan". |
+| Insights | Six stat tiles, suggestions, a 7-day workload bar chart (capacity as a dashed line, overload in `danger`) with the same numbers in a table, and project progress bars. |
 
 ## 11. Resolved questions
 

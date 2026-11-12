@@ -17,7 +17,8 @@ Items marked with a milestone don't exist yet; add them only in that milestone.
 - **API:** Hono, same origin as the frontend (Vite proxy locally, Vercel Functions in production) (M6)
 - **Database:** Neon PostgreSQL with Drizzle ORM and committed migrations (M6): the `development` branch locally, the `production` branch only from M11. PGlite for automated tests and explicitly selected offline development (`npm run dev:offline`)
 - **Auth:** Better Auth, email and password, database sessions in HttpOnly SameSite cookies, Origin-checked CSRF protection, database rate limiting (M7); password reset (M8)
-- **AI:** Claude API, server-side only, structured output validated with Zod (M9)
+- **AI (M9):** provider interface (`server/ai/`); default `AI_PROVIDER=mock` (free, offline demo provider, labelled "Demo AI"); Claude adapter via `@anthropic-ai/sdk`, server-side only, structured output validated with Zod. Real (paid) provider calls only after the developer's explicit approval. Tests and E2E always use the mock.
+- **Calendar (M9):** FullCalendar 6 (MIT) for the views; recurrence, time zones, scheduling and insights are pure domain code (`src/domain/zonedTime.ts`, `calendar.ts`, `scheduling.ts`, `insights.ts`, `ai.ts`, `proposals.ts`)
 - **Tests:** Vitest, React Testing Library, PGlite for API tests (M6), Playwright end-to-end (M8)
 - **CI:** GitHub Actions on every pull request (lint, typecheck, test, build)
 - **Deployment:** Vercel, **only in M11**. Develop and test on localhost until then, keeping the code deployment-compatible (docs/architecture.md §9).
@@ -42,6 +43,7 @@ Never delete, reset, overwrite, or clean up existing user data, local databases 
 - Another user's resource returns 404. Invalid input returns 400.
 - Secrets live only in environment variables. Never use the `VITE_` prefix for secrets, because those variables are bundled into the browser.
 - Treat AI output as untrusted: validate it, show it as a draft, and save only after the user approves.
+- AI changes go through stored proposals (`ai_proposal`), applied server-side in one transaction with an atomic claim, stale checks and revalidation; AI may only propose allowlisted operations on data it was shown. Never log prompts, AI content or keys.
 - Nothing is deployed publicly before M11. Release requires the auth, isolation and security checks from M7–M8 to pass.
 
 ## Coding Conventions
