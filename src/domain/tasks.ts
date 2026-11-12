@@ -39,13 +39,14 @@ export function createTask(input: CreateTaskInput, projects: readonly Project[],
     status: input.status,
     priority: input.priority,
     dueDate: input.dueDate,
+    estimatedMinutes: input.estimatedMinutes,
     completedAt: completedAtFor(null, input.status, timestamp),
     createdAt: timestamp,
     updatedAt: timestamp,
   }
 }
 
-const UPDATABLE_FIELDS = ['projectId', 'title', 'description', 'status', 'priority', 'dueDate'] as const
+const UPDATABLE_FIELDS = ['projectId', 'title', 'description', 'status', 'priority', 'dueDate', 'estimatedMinutes'] as const
 
 /**
  * Applies a partial update. Returns the *same object* when no field actually changes, so callers

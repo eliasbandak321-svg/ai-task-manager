@@ -40,6 +40,7 @@ export function makeTask(overrides: Partial<Task> = {}): Task {
     description: '',
     priority: 'medium',
     dueDate: null,
+    estimatedMinutes: null,
     createdAt: T0,
     updatedAt: T0,
     ...overrides,

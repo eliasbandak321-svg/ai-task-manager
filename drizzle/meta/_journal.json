@@ -15,6 +15,13 @@
       "when": 1794400171393,
       "tag": "0001_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794484313487,
+      "tag": "0002_calendar_ai",
+      "breakpoints": true
     }
   ]
 }

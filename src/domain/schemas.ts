@@ -37,6 +37,11 @@ const taskDescription = z
   .trim()
   .max(LIMITS.taskDescription, `Description must be at most ${LIMITS.taskDescription} characters`)
 const subtaskTitle = requiredText('Subtask title', LIMITS.subtaskTitle)
+/** Effort estimate in whole minutes; null when unknown. */
+export const estimatedMinutesSchema = z
+  .int('Estimate must be a whole number of minutes')
+  .min(LIMITS.estimateMinutesMin, `Estimate must be at least ${LIMITS.estimateMinutesMin} minutes`)
+  .max(LIMITS.estimateMinutesMax, `Estimate must be at most ${LIMITS.estimateMinutesMax / 60} hours`)
 
 /** Rejects `{}` for update inputs, so "nothing to update" is a validation error, not a silent no-op. */
 function hasAtLeastOneField(value: object): boolean {
@@ -65,6 +70,7 @@ export const taskSchema = z
     status: taskStatusSchema,
     priority: taskPrioritySchema,
     dueDate: isoDateSchema.nullable(),
+    estimatedMinutes: estimatedMinutesSchema.nullable(),
     completedAt: timestampSchema.nullable(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
@@ -95,6 +101,7 @@ export const createTaskInputSchema = z.strictObject({
   status: taskStatusSchema.default('todo'),
   priority: taskPrioritySchema.default('medium'),
   dueDate: isoDateSchema.nullable().default(null),
+  estimatedMinutes: estimatedMinutesSchema.nullable().default(null),
 })
 
 export const updateTaskInputSchema = z
@@ -105,6 +112,7 @@ export const updateTaskInputSchema = z
     status: taskStatusSchema,
     priority: taskPrioritySchema,
     dueDate: isoDateSchema.nullable(), // null clears the deadline
+    estimatedMinutes: estimatedMinutesSchema.nullable(),
   })
   .partial()
   .refine(hasAtLeastOneField, AT_LEAST_ONE_FIELD)
