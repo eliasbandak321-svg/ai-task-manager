@@ -173,3 +173,12 @@ describe('proposal isolation', () => {
     expect((await call<Proposal>(user, 'GET', `/api/proposals/${proposal.body.id}`)).body.status).toBe('pending')
   })
 })
+
+describe('earliestSessionStart', () => {
+  it('starts at the next quarter hour at least 10 minutes away', async () => {
+    const { earliestSessionStart } = await import('./workspace')
+    expect(earliestSessionStart(new Date('2026-03-02T09:00:00.000Z')).toISOString()).toBe('2026-03-02T09:15:00.000Z')
+    expect(earliestSessionStart(new Date('2026-03-02T09:04:59.000Z')).toISOString()).toBe('2026-03-02T09:15:00.000Z')
+    expect(earliestSessionStart(new Date('2026-03-02T09:05:01.000Z')).toISOString()).toBe('2026-03-02T09:30:00.000Z')
+  })
+})

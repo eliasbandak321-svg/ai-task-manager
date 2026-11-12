@@ -98,7 +98,9 @@ export class Workspace {
   async proposeSchedule(input: unknown): Promise<Proposal> {
     const request = scheduleRequestSchema.parse(input)
     const prefs = await this.prefs()
-    const now = this.now()
+    // Sessions start at a clean time with a little lead: the next quarter hour at least 10
+    // minutes away. (Starting right "now" would make the preview stale seconds later.)
+    const now = earliestSessionStart(this.now())
     const tz = prefs.timeZone
     const today = zonedParts(now, tz).date
     const from = request.from < today ? today : request.from
@@ -401,6 +403,13 @@ export class Workspace {
     }
     return { applied }
   }
+}
+
+/** The next quarter hour that is at least LEAD_MINUTES after `now`. */
+const LEAD_MINUTES = 10
+export function earliestSessionStart(now: Date): Date {
+  const quarter = 15 * 60_000
+  return new Date(Math.ceil((now.getTime() + LEAD_MINUTES * 60_000) / quarter) * quarter)
 }
 
 function groupBy<T>(list: readonly T[], key: (item: T) => string): Map<string, T[]> {

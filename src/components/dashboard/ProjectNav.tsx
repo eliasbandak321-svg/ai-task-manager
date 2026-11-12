@@ -44,7 +44,7 @@ export function ProjectNav() {
     // project list can always be scrolled clear of the notification corner (see Toaster).
     <nav
       aria-label="Projects"
-      className="lg:sticky lg:top-26 lg:max-h-[calc(100svh-6.5rem)] lg:w-64 lg:shrink-0 lg:overflow-y-auto lg:pb-20"
+      className="lg:sticky lg:top-38 lg:max-h-[calc(100svh-10rem)] lg:w-64 lg:shrink-0 lg:overflow-y-auto lg:pb-20"
     >
       <Button
         variant="secondary"
@@ -72,7 +72,7 @@ export function ProjectNav() {
 
         <ul className="mt-1 space-y-1">
           <li>
-            <NavLink to="/app" end className={linkClass} onClick={collapse}>
+            <NavLink to="/app/projects" end className={linkClass} onClick={collapse}>
               All tasks
             </NavLink>
           </li>

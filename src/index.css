@@ -44,6 +44,16 @@
   --color-priority-medium: #ffc978;
   --color-priority-low: #a6b0c8;
 
+  /* Calendar event categories (M9). Each is a light tint, so night-coloured text on it stays
+     above 7:1; the category name is always shown as text too, never by colour alone. */
+  --color-category-work: #7fd4ff;
+  --color-category-study: #b9a7ff;
+  --color-category-meeting: #ffc978;
+  --color-category-focus: #6ee7b7;
+  --color-category-personal: #ffa8d2;
+  --color-category-break: #c4ccdf;
+  --color-category-other: #a6b0c8;
+
   /* Typography */
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Sora Variable", ui-sans-serif, system-ui, sans-serif;
@@ -242,4 +252,53 @@
   a.link-underline:hover {
     background-size: 100% 1px;
   }
+}
+
+/*
+  Calendar (M9): FullCalendar themed with our tokens through its CSS variables, so it matches
+  the dark design and keeps visible focus states. No hard-coded colours.
+*/
+.calendar-theme .fc {
+  --fc-border-color: var(--color-line);
+  --fc-page-bg-color: var(--color-surface);
+  --fc-neutral-bg-color: var(--color-raised);
+  --fc-today-bg-color: color-mix(in srgb, var(--color-glow) 8%, transparent);
+  --fc-now-indicator-color: var(--color-danger);
+  --fc-highlight-color: color-mix(in srgb, var(--color-glow) 20%, transparent);
+  --fc-button-bg-color: var(--color-raised);
+  --fc-button-border-color: var(--color-line-strong);
+  --fc-button-text-color: var(--color-ink);
+  --fc-button-hover-bg-color: var(--color-line-strong);
+  --fc-button-hover-border-color: var(--color-ink-subtle);
+  --fc-button-active-bg-color: var(--color-glow);
+  --fc-button-active-border-color: var(--color-glow);
+  --fc-event-text-color: var(--color-night);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+}
+.calendar-theme .fc .fc-button-primary:not(:disabled).fc-button-active,
+.calendar-theme .fc .fc-button-primary:not(:disabled):active {
+  color: var(--color-night);
+}
+.calendar-theme .fc .fc-button {
+  min-height: 2.75rem;
+  padding-inline: 0.875rem;
+}
+.calendar-theme .fc .fc-toolbar-title {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+}
+.calendar-theme .fc .fc-col-header-cell-cushion,
+.calendar-theme .fc .fc-daygrid-day-number,
+.calendar-theme .fc .fc-timegrid-slot-label-cushion {
+  color: var(--color-ink-muted);
+}
+.calendar-theme .fc .fc-button:focus-visible,
+.calendar-theme .fc .fc-event:focus-visible {
+  outline: 2px solid var(--color-glow);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.calendar-theme .fc .fc-event {
+  cursor: pointer;
 }

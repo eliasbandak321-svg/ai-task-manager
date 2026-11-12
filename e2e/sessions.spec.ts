@@ -7,7 +7,7 @@ test.describe('sessions', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'All tasks' })).toBeVisible()
     const tab = await context.newPage()
     await tab.goto('/app')
-    await expect(tab.getByRole('heading', { level: 1, name: 'All tasks' })).toBeVisible()
+    await expect(tab.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
   })
 
   test('a session ended elsewhere sends the other tab back to login, then returns there', async ({ page, context }) => {

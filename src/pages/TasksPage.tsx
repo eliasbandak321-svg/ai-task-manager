@@ -202,7 +202,7 @@ export function TasksPage() {
           onClose={closeDialog}
           onDeleted={() => {
             closeDialog()
-            navigate('/app')
+            navigate('/app/projects')
           }}
         />
       )}
