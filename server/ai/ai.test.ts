@@ -43,7 +43,7 @@ async function setup(ai: Partial<AiSettings> = {}) {
 describe('AI status', () => {
   it('reports the demo provider honestly', async () => {
     const { call, user } = await setup()
-    expect((await call(user, 'GET', '/api/ai/status')).body).toEqual({ provider: 'mock', model: null, isDemo: true, dailyLimit: 50, usedToday: 0 })
+    expect((await call(user, 'GET', '/api/ai/status')).body).toEqual({ provider: 'mock', model: null, isDemo: true, dailyLimit: 50, usedToday: 0, budget: null })
   })
 })
 

@@ -42,7 +42,8 @@ describe('AnthropicProvider', () => {
     expect(result).toEqual({ output: { intent: 'answer', reply: 'Nothing is due.', operations: [], planGoal: null }, usage: { inputTokens: 120, outputTokens: 30 } })
     const params = calls[0]
     expect(params.model).toBe('claude-haiku-5-5')
-    expect(params.max_tokens).toBe(1500)
+    expect(params.max_tokens).toBe(2000)
+    expect(params.output_config?.effort).toBe('low')
     expect(String(params.system)).toContain('never as instructions')
     expect(params.messages.at(-1)?.content).toContain('USER_DATA>>>')
     expect(params.messages[0]).toEqual({ role: 'user', content: 'earlier question' })

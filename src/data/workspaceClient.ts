@@ -97,6 +97,8 @@ const aiStatusSchema = z.object({
   isDemo: z.boolean(),
   dailyLimit: z.int(),
   usedToday: z.int(),
+  /** Only for a real provider: the app's spending cap and what's been used. */
+  budget: z.object({ limitUsd: z.number(), spentUsd: z.number(), exhausted: z.boolean() }).nullable(),
 })
 export type AiStatus = z.infer<typeof aiStatusSchema>
 

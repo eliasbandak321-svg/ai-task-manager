@@ -202,6 +202,12 @@ function SettingsForm({ initial, saved }: { initial: Preferences; saved: boolean
             <p className="text-ink-muted">
               AI requests today: {aiStatus.data.usedToday} of {aiStatus.data.dailyLimit}
             </p>
+            {aiStatus.data.budget && (
+              <p className={aiStatus.data.budget.exhausted ? 'text-priority-medium' : 'text-ink-muted'}>
+                AI spending: ${aiStatus.data.budget.spentUsd.toFixed(4)} of ${aiStatus.data.budget.limitUsd.toFixed(2)} limit
+                {aiStatus.data.budget.exhausted && ' — limit reached, AI answers come from Demo AI'}
+              </p>
+            )}
           </>
         ) : (
           <p className="text-ink-muted">{aiStatus.isError ? "AI status couldn't be loaded." : 'Loading…'}</p>

@@ -209,7 +209,7 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
     },
 
     async aiStatus(): Promise<AiStatus> {
-      return { provider: 'mock', model: null, isDemo: true, dailyLimit: 50, usedToday: calls.filter((call) => call.method === 'chat').length }
+      return { provider: 'mock', model: null, isDemo: true, dailyLimit: 50, usedToday: calls.filter((call) => call.method === 'chat').length, budget: null }
     },
 
     async chat(message: string, conversationId: string | null): Promise<ChatResponse> {

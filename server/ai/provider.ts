@@ -64,6 +64,9 @@ export interface ProviderResult<T> {
   usage: Usage
 }
 
+/** Which request a call is (for limits and usage logs). */
+export type AiRequestKind = 'assistant' | 'plan' | 'assist'
+
 export interface AiProvider {
   /** 'mock' answers are demo output and are labelled as such everywhere. */
   readonly name: 'mock' | 'anthropic'

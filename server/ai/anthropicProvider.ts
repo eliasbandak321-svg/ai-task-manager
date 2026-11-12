@@ -38,12 +38,18 @@ export interface MessagesClient {
   messages: Pick<Anthropic['messages'], 'parse'>
 }
 
-const MAX_TOKENS = { assistant: 1500, plan: 6000, assist: 1500 } as const
+/**
+ * Output caps per request type. Haiku 5.5 thinks before answering and thinking counts toward
+ * max_tokens, so they leave room for it; at effort "low" it thinks little or not at all.
+ */
+export const MAX_TOKENS = { assistant: 2000, plan: 8000, assist: 2000 } as const
+export type AiEffort = 'low' | 'medium' | 'high'
 
 export interface AnthropicProviderOptions {
   apiKey: string
   model: string
   timeoutMs: number
+  effort?: AiEffort
   /** Injected in tests; by default the real SDK client. */
   client?: MessagesClient
 }
@@ -51,10 +57,12 @@ export interface AnthropicProviderOptions {
 export class AnthropicProvider implements AiProvider {
   readonly name = 'anthropic' as const
   readonly model: string
+  private readonly effort: AiEffort
   private readonly client: MessagesClient
 
-  constructor({ apiKey, model, timeoutMs, client }: AnthropicProviderOptions) {
+  constructor({ apiKey, model, timeoutMs, effort = 'low', client }: AnthropicProviderOptions) {
     this.model = model
+    this.effort = effort
     this.client = client ?? new Anthropic({ apiKey, timeout: timeoutMs, maxRetries: 2 })
   }
 
@@ -71,7 +79,7 @@ export class AnthropicProvider implements AiProvider {
         max_tokens: maxTokens,
         system,
         messages,
-        output_config: { format: zodOutputFormat(schema) },
+        output_config: { format: zodOutputFormat(schema), effort: this.effort },
       })
     } catch (error) {
       throw toAiError(error)

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MODEL_PRICES } from './ai/pricing'
 import type { DatabaseConfig } from './db/client'
 
 /*
@@ -97,7 +98,14 @@ const envSchema = z.object({
   /** Model id for the real provider (see docs/architecture.md, AI provider). */
   AI_MODEL: z.string().regex(/^[a-z0-9-]+$/, 'AI_MODEL must be a model id like claude-haiku-5-5').default('claude-haiku-5-5'),
   /** App-level limit: AI requests per user per day (protects against runaway cost). */
-  AI_DAILY_REQUEST_LIMIT: z.coerce.number().int().min(1).max(10_000).default(50),
+  AI_DAILY_REQUEST_LIMIT: z.coerce.number().int().min(1).max(10_000).default(20),
+  /**
+   * Hard spending cap for the real provider, in US dollars, across all users and days (the
+   * app's own count, from token usage). When reached, AI falls back to the demo provider.
+   */
+  AI_BUDGET_USD: z.coerce.number().min(0).max(100).default(1),
+  /** How much the model thinks (thinking tokens are billed as output): low, medium or high. */
+  AI_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
   /** Give up on a provider call after this long. */
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
 })
@@ -135,6 +143,9 @@ function aiProblem(env: Env): string | null {
   // Automated tests must never call a paid API.
   if (env.NODE_ENV === 'test') return 'AI_PROVIDER=anthropic is not allowed in tests; they always use the mock provider.'
   if (!env.ANTHROPIC_API_KEY) return 'AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY (see .env.example).'
+  if (!(env.AI_MODEL in MODEL_PRICES)) {
+    return `AI_MODEL=${env.AI_MODEL} has no known price, so the spending cap can't be enforced. Use one of: ${Object.keys(MODEL_PRICES).join(', ')}.`
+  }
   return null
 }
 
