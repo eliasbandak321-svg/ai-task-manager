@@ -4,7 +4,8 @@ import interactionPlugin, { type EventResizeDoneArg } from '@fullcalendar/intera
 import luxonPlugin from '@fullcalendar/luxon3'
 import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
-import { EVENT_CATEGORY_LABELS, type Occurrence } from '../../domain'
+import { useState } from 'react'
+import { EVENT_CATEGORY_LABELS, zonedParts, type Occurrence } from '../../domain'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { CATEGORY_COLOR_VARS } from '../../lib/time'
 
@@ -37,6 +38,8 @@ const key = (occurrence: Occurrence) => `${occurrence.eventId}|${occurrence.occu
 
 export default function CalendarView({ timeZone, occurrences, onRangeChange, onSelectSlot, onOpen, onTimeChange }: CalendarViewProps) {
   const isSmall = useMediaQuery('(max-width: 639px)')
+  // On phones the grid scrolls inside a fixed height and opens an hour before "now" (user's zone).
+  const [scrollTime] = useState(() => `${String(Math.max(0, Math.floor(zonedParts(new Date(), timeZone).minutes / 60) - 1)).padStart(2, '0')}:00:00`)
   const byKey = new Map(occurrences.map((occurrence) => [key(occurrence), occurrence]))
 
   const events: EventInput[] = occurrences.map((occurrence) => ({
@@ -75,8 +78,8 @@ export default function CalendarView({ timeZone, occurrences, onRangeChange, onS
         buttonText={{ today: 'Today', day: 'Day', week: 'Week', month: 'Month' }}
         firstDay={1}
         nowIndicator
-        height="auto"
-        scrollTime="08:00:00"
+        height={isSmall ? '70svh' : 'auto'}
+        scrollTime={isSmall ? scrollTime : '08:00:00'}
         slotDuration="00:30:00"
         allDaySlot={false}
         editable

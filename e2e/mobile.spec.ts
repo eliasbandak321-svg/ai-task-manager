@@ -70,4 +70,28 @@ test.describe('phone layout', () => {
     expect(small).toBe(0)
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
   })
+
+  test('the calendar works on a phone: day view, creating an event, agenda, no overflow', async ({ page }) => {
+    await signUpAndConfirm(page, 'Phone Calendar')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).click()
+    const calendar = page.locator('.calendar-theme')
+    await expect(calendar.locator('.fc-timeGridDay-view')).toBeVisible()
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+
+    await page.getByRole('button', { name: 'New event' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New event' })
+    await dialog.getByRole('textbox', { name: 'Title' }).fill('Phone event')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('region', { name: 'Agenda' }).getByText('Phone event')).toBeVisible()
+    await expect(calendar.locator('.fc-event', { hasText: 'Phone event' })).toBeVisible()
+
+    // The view switcher is reachable at the bottom of the calendar.
+    await calendar.getByRole('button', { name: 'Month', exact: true }).click()
+    await expect(calendar.locator('.fc-dayGridMonth-view')).toBeVisible()
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+    await page.screenshot({ path: 'test-results/calendar/07-phone-month.png', fullPage: true })
+    await calendar.getByRole('button', { name: 'Day', exact: true }).click()
+    await page.screenshot({ path: 'test-results/calendar/08-phone-day.png' })
+  })
 })

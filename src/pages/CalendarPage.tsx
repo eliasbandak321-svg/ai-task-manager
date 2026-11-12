@@ -107,7 +107,7 @@ export function CalendarPage() {
         id: change.occurrence.eventId,
         change: { scope, occurrenceStart: change.occurrence.occurrenceStart, changes: { startAt: change.startAt, endAt: change.endAt } },
       })
-      showToast('Event moved.')
+      showToast('Event updated.')
     } catch (error) {
       change.revert()
       showToast(errorMessage(error), 'error')
