@@ -7,14 +7,19 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
+import type { Recurrence } from '../../src/domain/calendar'
+import { EVENT_CATEGORIES, SESSION_STATUSES } from '../../src/domain/calendar'
 import { LIMITS, TASK_PRIORITIES, TASK_STATUSES } from '../../src/domain/constants'
+import { FOCUS_PERIODS, USE_CASES } from '../../src/domain/scheduling'
 
 /*
   Database schema (docs/architecture.md §4). Changes go through `npm run db:generate`,
@@ -162,6 +167,8 @@ export const tasks = pgTable(
     priority: text('priority', { enum: TASK_PRIORITIES }).notNull(),
     // A calendar date with no time zone (docs/architecture.md §4).
     dueDate: date('due_date', { mode: 'string' }),
+    // Effort estimate in minutes (M9); null when unknown.
+    estimatedMinutes: integer('estimated_minutes'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     ...timestamps,
   },
@@ -177,6 +184,10 @@ export const tasks = pgTable(
     check('task_description_length', sql.raw(`char_length(description) <= ${LIMITS.taskDescription}`)),
     check('task_status_valid', oneOf('status', TASK_STATUSES)),
     check('task_priority_valid', oneOf('priority', TASK_PRIORITIES)),
+    check(
+      'task_estimated_minutes_range',
+      sql.raw(`estimated_minutes is null or estimated_minutes between ${LIMITS.estimateMinutesMin} and ${LIMITS.estimateMinutesMax}`),
+    ),
     check('task_completed_at_matches_status', sql`(${table.status} = 'done') = (${table.completedAt} is not null)`),
   ],
 )
@@ -202,5 +213,267 @@ export const subtasks = pgTable(
     index('subtask_user_task_idx').on(table.userId, table.taskId),
     check('subtask_title_length', maxLength('title', LIMITS.subtaskTitle)),
     check('subtask_position_nonnegative', sql`${table.position} >= 0`),
+  ],
+)
+
+// ---------- Calendar, scheduling and AI (M9) ----------
+// All additive: new tables plus one nullable column on task. Every table is owned through
+// user_id, and composite foreign keys keep references inside one user's data.
+
+/** Availability and personalization: one row per user, created on first save. */
+export const userPreferences = pgTable(
+  'user_preferences',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    timeZone: text('time_zone').notNull(),
+    useCase: text('use_case', { enum: USE_CASES }).notNull(),
+    /** 0 = Sunday … 6 = Saturday. */
+    workDays: integer('work_days').array().notNull(),
+    dayStartMinutes: integer('day_start_minutes').notNull(),
+    dayEndMinutes: integer('day_end_minutes').notNull(),
+    focusPeriod: text('focus_period', { enum: FOCUS_PERIODS }).notNull(),
+    sessionMinutes: integer('session_minutes').notNull(),
+    breakMinutes: integer('break_minutes').notNull(),
+    maxDailyMinutes: integer('max_daily_minutes').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check('user_preferences_use_case_valid', oneOf('use_case', USE_CASES)),
+    check('user_preferences_focus_valid', oneOf('focus_period', FOCUS_PERIODS)),
+    check('user_preferences_hours_valid', sql`${table.dayStartMinutes} >= 0 and ${table.dayEndMinutes} <= 1440 and ${table.dayEndMinutes} - ${table.dayStartMinutes} >= 30`),
+  ],
+)
+
+/**
+ * Calendar events. Start and end are UTC instants; `time_zone` is the IANA zone the event
+ * repeats in. A recurring event stores its rule (`recurrence`), never one row per occurrence.
+ */
+export const calendarEvents = pgTable(
+  'calendar_event',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description').notNull().default(''),
+    category: text('category', { enum: EVENT_CATEGORIES }).notNull(),
+    startAt: timestamp('start_at', { withTimezone: true }).notNull(),
+    endAt: timestamp('end_at', { withTimezone: true }).notNull(),
+    timeZone: text('time_zone').notNull(),
+    taskId: uuid('task_id'),
+    recurrence: jsonb('recurrence').$type<Recurrence>(),
+    /** Original starts (ISO instants) of deleted or separately edited occurrences. */
+    excludedStarts: jsonb('excluded_starts').$type<string[]>().notNull().default([]),
+    /** For an edited occurrence stored on its own: the series it came from. */
+    seriesId: uuid('series_id'),
+    originalStart: timestamp('original_start', { withTimezone: true }),
+    /** planned (default), completed (counts as work done on the task) or skipped. */
+    sessionStatus: text('session_status', { enum: SESSION_STATUSES }).notNull().default('planned'),
+    ...timestamps,
+  },
+  (table) => [
+    unique('calendar_event_id_user_id_unique').on(table.id, table.userId),
+    // No cascade: deleting a task unlinks its events first (the user keeps their calendar),
+    // and this key guarantees an event never points at another user's task.
+    foreignKey({
+      name: 'calendar_event_task_same_user_fk',
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+    }),
+    foreignKey({
+      name: 'calendar_event_series_same_user_fk',
+      columns: [table.seriesId, table.userId],
+      foreignColumns: [table.id, table.userId],
+    }).onDelete('cascade'),
+    index('calendar_event_user_start_idx').on(table.userId, table.startAt),
+    index('calendar_event_user_task_idx').on(table.userId, table.taskId),
+    check('calendar_event_title_length', maxLength('title', 200)),
+    check('calendar_event_description_length', sql.raw('char_length(description) <= 2000')),
+    check('calendar_event_category_valid', oneOf('category', EVENT_CATEGORIES)),
+    check('calendar_event_session_status_valid', oneOf('session_status', SESSION_STATUSES)),
+    check('calendar_event_span_valid', sql`${table.endAt} > ${table.startAt} and ${table.endAt} - ${table.startAt} <= interval '14 days'`),
+  ],
+)
+
+/** AI Assistant conversations and their messages. */
+export const aiConversations = pgTable(
+  'ai_conversation',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('ai_conversation_id_user_id_unique').on(table.id, table.userId),
+    index('ai_conversation_user_idx').on(table.userId, table.updatedAt),
+    check('ai_conversation_title_length', maxLength('title', 120)),
+  ],
+)
+
+export const AI_MESSAGE_ROLES = ['user', 'assistant'] as const
+
+export const aiMessages = pgTable(
+  'ai_message',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id').notNull(),
+    role: text('role', { enum: AI_MESSAGE_ROLES }).notNull(),
+    content: text('content').notNull(),
+    /** Which provider produced an assistant message ('mock' or a real provider). */
+    source: text('source'),
+    proposalId: uuid('proposal_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'ai_message_conversation_same_user_fk',
+      columns: [table.conversationId, table.userId],
+      foreignColumns: [aiConversations.id, aiConversations.userId],
+    }).onDelete('cascade'),
+    index('ai_message_conversation_idx').on(table.userId, table.conversationId, table.createdAt),
+    check('ai_message_role_valid', oneOf('role', AI_MESSAGE_ROLES)),
+    check('ai_message_content_length', sql.raw('char_length(content) <= 8000')),
+  ],
+)
+
+export const PROPOSAL_KINDS = ['plan', 'schedule', 'changes'] as const
+export const PROPOSAL_STATUSES = ['pending', 'applied', 'rejected'] as const
+
+/**
+ * A change suggested by the AI or the scheduler, waiting for the user's decision. Nothing is
+ * changed until it's approved; approval flips `status` from 'pending' exactly once, so a
+ * double click or a replayed request can't apply it twice.
+ */
+export const aiProposals = pgTable(
+  'ai_proposal',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: PROPOSAL_KINDS }).notNull(),
+    status: text('status', { enum: PROPOSAL_STATUSES }).notNull(),
+    /** What was proposed (validated with the domain schemas when created and when applied). */
+    payload: jsonb('payload').notNull(),
+    /** Who proposed it: 'mock', a real AI provider, or 'engine' (deterministic scheduler). */
+    source: text('source').notNull(),
+    /** What was created or changed, filled in when applied. */
+    result: jsonb('result'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('ai_proposal_user_idx').on(table.userId, table.createdAt),
+    check('ai_proposal_kind_valid', oneOf('kind', PROPOSAL_KINDS)),
+    check('ai_proposal_status_valid', oneOf('status', PROPOSAL_STATUSES)),
+  ],
+)
+
+/** AI requests per user per day, for the app-level usage limit. */
+export const aiUsage = pgTable(
+  'ai_usage',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    requests: integer('requests').notNull().default(0),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    /**
+     * Deprecated (migration 0003): spending is tracked in ai_spend_ledger since 0004, which
+     * survives account deletion. Kept (not dropped) because migrations here are additive only.
+     */
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'number' }).notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })],
+)
+
+/**
+ * Task dependencies: `task_id` can only start after `depends_on_id` is finished. Both tasks
+ * belong to the same user (composite keys); deleting either task removes the edge. The graph
+ * is kept acyclic by the domain (planDependencies).
+ */
+export const taskDependencies = pgTable(
+  'task_dependency',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    taskId: uuid('task_id').notNull(),
+    dependsOnId: uuid('depends_on_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.dependsOnId] }),
+    foreignKey({
+      name: 'task_dependency_task_same_user_fk',
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'task_dependency_prerequisite_same_user_fk',
+      columns: [table.dependsOnId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+    }).onDelete('cascade'),
+    index('task_dependency_user_idx').on(table.userId),
+    check('task_dependency_not_self', sql`${table.taskId} <> ${table.dependsOnId}`),
+  ],
+)
+
+// ---------- AI spending (M9, migration 0004) ----------
+// Application-wide and deliberately NOT linked to user accounts: deleting a user must never
+// erase what the app has spent. No user ids, prompts or content are stored here.
+
+export const AI_SPEND_STATUSES = ['reserved', 'settled', 'released'] as const
+
+/**
+ * The single counter the spending cap is enforced on (one row, key 'app'). Reserving budget
+ * is one conditional UPDATE on this row, so concurrent requests are serialized by the
+ * database and can never push the total past the cap.
+ */
+export const aiSpendTotal = pgTable(
+  'ai_spend_total',
+  {
+    key: text('key').primaryKey(),
+    /** Reserved plus settled spending, in millionths of a US dollar. */
+    committedMicroUsd: bigint('committed_micro_usd', { mode: 'number' }).notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  () => [check('ai_spend_total_nonnegative', sql`committed_micro_usd >= 0`)],
+)
+
+/** One row per real-provider request: what was reserved, and what it actually cost. */
+export const aiSpendLedger = pgTable(
+  'ai_spend_ledger',
+  {
+    id: uuid('id').primaryKey(),
+    kind: text('kind').notNull(),
+    model: text('model').notNull(),
+    status: text('status', { enum: AI_SPEND_STATUSES }).notNull(),
+    reservedMicroUsd: bigint('reserved_micro_usd', { mode: 'number' }).notNull(),
+    /** Actual cost when known (settled with usage); the reservation is kept when it isn't. */
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'number' }),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    /** Why the reservation was kept or released (e.g. 'timeout'), never error text. */
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('ai_spend_ledger_created_idx').on(table.createdAt),
+    check('ai_spend_ledger_status_valid', oneOf('status', AI_SPEND_STATUSES)),
+    check('ai_spend_ledger_amounts_nonnegative', sql`${table.reservedMicroUsd} >= 0 and coalesce(${table.costMicroUsd}, 0) >= 0`),
   ],
 )

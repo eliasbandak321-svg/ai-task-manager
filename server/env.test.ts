@@ -106,3 +106,26 @@ describe('loadEnv: authentication settings', () => {
     )
   })
 })
+
+describe('loadEnv: AI provider', () => {
+  it('defaults to the free demo provider', () => {
+    expect(loadEnv(neon)).toMatchObject({ AI_PROVIDER: 'mock', AI_MODEL: 'claude-haiku-5-5', AI_DAILY_REQUEST_LIMIT: 20, AI_BUDGET_USD: 1, AI_EFFORT: 'low' })
+  })
+
+  it('needs a key for the real provider, and never allows it in tests', () => {
+    expect(() => loadEnv({ ...neon, AI_PROVIDER: 'anthropic' })).toThrow('AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY')
+    expect(() => loadEnv({ ...neon, AI_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-test-0000000000000000', NODE_ENV: 'test' })).toThrow(/not allowed in tests/)
+    expect(loadEnv({ ...neon, AI_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-test-0000000000000000' }).AI_PROVIDER).toBe('anthropic')
+    expect(() => loadEnv({ ...neon, AI_PROVIDER: 'openai' })).toThrow()
+    expect(() => loadEnv({ ...neon, AI_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-test-0000000000000000', AI_MODEL: 'claude-unknown-9' })).toThrow(/no known price/)
+    expect(() => loadEnv({ ...neon, AI_BUDGET_USD: '-1' })).toThrow()
+  })
+
+  it('never includes the API key in configuration errors', () => {
+    try {
+      loadEnv({ ...neon, ANTHROPIC_API_KEY: 'sk-ant-short' })
+    } catch (error) {
+      expect(String(error)).not.toContain('sk-ant-short')
+    }
+  })
+})

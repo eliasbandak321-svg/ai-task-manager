@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MODEL_PRICES } from './ai/pricing'
 import type { DatabaseConfig } from './db/client'
 
 /*
@@ -16,6 +17,7 @@ import type { DatabaseConfig } from './db/client'
 */
 
 export const DATABASE_PROVIDERS = ['neon', 'postgres', 'pglite'] as const
+export const AI_PROVIDERS = ['mock', 'anthropic'] as const
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -84,6 +86,28 @@ const envSchema = z.object({
     .optional()
     .transform((value) => (value ?? '').split(',').map((entry) => entry.trim()).filter(Boolean))
     .pipe(z.array(z.string().regex(/^[0-9a-f:.]+(\/\d{1,3})?$/i, 'TRUSTED_PROXIES must list IP addresses or CIDR ranges'))),
+  /**
+   * Which AI provider answers AI requests (M9):
+   *   mock       built-in demo responses, free and offline (default; always used by tests)
+   *   anthropic  the Claude API. Costs money per request: enable only after approval, with a
+   *              key that has a spending limit set in the Anthropic Console.
+   */
+  AI_PROVIDER: z.enum(AI_PROVIDERS).default('mock'),
+  /** Secret. Only read when AI_PROVIDER=anthropic; never sent to the browser or logged. */
+  ANTHROPIC_API_KEY: z.string().min(20).optional(),
+  /** Model id for the real provider (see docs/architecture.md, AI provider). */
+  AI_MODEL: z.string().regex(/^[a-z0-9-]+$/, 'AI_MODEL must be a model id like claude-haiku-5-5').default('claude-haiku-5-5'),
+  /** App-level limit: AI requests per user per day (protects against runaway cost). */
+  AI_DAILY_REQUEST_LIMIT: z.coerce.number().int().min(1).max(10_000).default(20),
+  /**
+   * Hard spending cap for the real provider, in US dollars, across all users and days (the
+   * app's own count, from token usage). When reached, AI falls back to the demo provider.
+   */
+  AI_BUDGET_USD: z.coerce.number().min(0).max(100).default(1),
+  /** How much the model thinks (thinking tokens are billed as output): low, medium or high. */
+  AI_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
+  /** Give up on a provider call after this long. */
+  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -114,6 +138,17 @@ function providerProblem(env: Env): string | null {
   }
 }
 
+function aiProblem(env: Env): string | null {
+  if (env.AI_PROVIDER !== 'anthropic') return null
+  // Automated tests must never call a paid API.
+  if (env.NODE_ENV === 'test') return 'AI_PROVIDER=anthropic is not allowed in tests; they always use the mock provider.'
+  if (!env.ANTHROPIC_API_KEY) return 'AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY (see .env.example).'
+  if (!(env.AI_MODEL in MODEL_PRICES)) {
+    return `AI_MODEL=${env.AI_MODEL} has no known price, so the spending cap can't be enforced. Use one of: ${Object.keys(MODEL_PRICES).join(', ')}.`
+  }
+  return null
+}
+
 function securityProblem(env: Env): string | null {
   if (env.NODE_ENV !== 'production') return null
   if (!env.APP_ORIGIN.startsWith('https://')) {
@@ -141,7 +176,7 @@ export function loadEnv(source: Record<string, string | undefined>): Env {
   if (!result.success) {
     throw new Error(`Invalid environment configuration:\n${z.prettifyError(result.error)}`)
   }
-  const problem = providerProblem(result.data) ?? securityProblem(result.data)
+  const problem = providerProblem(result.data) ?? aiProblem(result.data) ?? securityProblem(result.data)
   if (problem) throw new Error(`Invalid environment configuration: ${problem}`)
   return result.data
 }

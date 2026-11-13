@@ -33,7 +33,8 @@ flowchart LR
 | node-postgres (`pg`) *(M6)* | Driver for Neon (and any PostgreSQL server) | Used when `DATABASE_URL` is set. The full repository contract passes over this driver, both locally and against the Neon development branch (`npm run test:neon`). |
 | tsx, concurrently *(M6)* | Run the TypeScript API in development | `npm run dev` starts Vite and the API together; tsx runs and reloads the server without a build step. |
 | Playwright *(M8)* | End-to-end tests in a real browser | Verifies complete user flows (sign up, then create a project and a task). |
-| Claude API *(M9)* | AI Task Breakdown | Called only from the server, so the API key never reaches the browser. Structured output is validated with Zod before anyone sees it. |
+| AI provider abstraction *(M9)* | Assistant, plan builder, task help | Features call an `AiProvider` interface (`server/ai/provider.ts`). Default: a free, offline **demo provider** (rule-based, labelled “Demo AI”). A Claude adapter (official `@anthropic-ai/sdk`, structured output validated with Zod) exists but is only used with `AI_PROVIDER=anthropic` after approval (§7). |
+| FullCalendar 6 *(M9)* | Calendar views (day/week/month), drag, resize, select | MIT-licensed, mature, accessible markup and keyboard-focusable events; lazy-loaded so only the calendar page downloads it. Recurrence, time zones and scheduling stay in our own tested domain code. |
 
 Exact versions are checked for compatibility when each milestone starts.
 
@@ -75,6 +76,15 @@ docs/            design.md, architecture.md
 | `project` | `id`, `userId`, `name`, `isInbox`, `createdAt`, `updatedAt` | Each user has exactly one Inbox, created at sign-up; it cannot be deleted. |
 | `task` | `id`, `userId`, `projectId`, `title`, `description?`, `status`, `priority`, `dueDate?`, `completedAt?`, `createdAt`, `updatedAt` | `status`: `todo` / `in_progress` / `done`. `priority`: `low` / `medium` / `high`. |
 | `subtask` | `id`, `userId`, `taskId`, `title`, `done`, `position` | One level only: a checklist. |
+| `task.estimated_minutes` *(M9)* | nullable integer, 5–6000 | Effort estimate used by the scheduler; unknown estimates are assumed to be 60 min and the proposal says so. |
+| `user_preferences` *(M9)* | `userId` (PK), `timeZone`, `useCase`, `workDays[]`, `dayStart/EndMinutes`, `focusPeriod`, `sessionMinutes`, `breakMinutes`, `maxDailyMinutes` | Availability and personalization. Defaults (browser time zone, Mon–Fri 9–17) until the user saves. |
+| `calendar_event` *(M9)* | `id`, `userId`, `title`, `description`, `category`, `startAt`, `endAt` (UTC), `timeZone` (IANA), `taskId?`, `recurrence?` (jsonb rule), `excludedStarts` (jsonb), `seriesId?`, `originalStart?` | A recurring event stores a **rule**, never one row per occurrence. A deleted occurrence is listed in `excludedStarts`; an edited one becomes its own event pointing to the series. `(task_id, user_id)` and `(series_id, user_id)` are composite foreign keys. |
+| `ai_conversation`, `ai_message` *(M9)* | conversation title; message `role`, `content` (≤ 8000), `source`, `proposalId?` | Assistant history; deleting a conversation deletes its messages. |
+| `ai_proposal` *(M9)* | `kind` (`plan`/`schedule`/`changes`), `status` (`pending`/`applied`/`rejected`), `payload` (jsonb), `source` (`mock`/`anthropic`/`engine`), `result`, `expiresAt` (24 h) | Suggested changes waiting for approval (§7). |
+| `ai_usage` *(M9)* | `(userId, day)` PK, `requests`, `inputTokens`, `outputTokens`, `costMicroUsd` | Per-user daily AI request limit and token statistics. `costMicroUsd` is no longer used (spending moved to the ledger in 0004; kept because migrations are additive). |
+| `ai_spend_total`, `ai_spend_ledger` *(M9, migration 0004)* | counter: `key` ('app'), `committedMicroUsd`; ledger: `kind`, `model`, `status` (reserved/settled/released), `reservedMicroUsd`, `costMicroUsd`, tokens, `note` | **Application-wide** AI spending, deliberately not linked to user accounts: deleting a user never erases spending history. No user ids, prompts or content. |
+| `task_dependency` *(M9, migration 0003)* | `(taskId, dependsOnId)` PK, `userId`, `createdAt` | "`taskId` starts only after `dependsOnId` is finished". Both ends are composite foreign keys `(id, user_id)` with cascade; a CHECK forbids self-edges; the domain refuses cycles (`planDependencies`). |
+| `calendar_event.session_status` *(M9, 0003)* | `planned` (default) / `completed` / `skipped` | Only sessions marked `completed` count as work done; a repeating series can't be marked as a whole (one occurrence is separated first). |
 
 **Rules:**
 - **Every owned row stores `userId`**, even where it could be derived through a join. This gives one simple, auditable security rule: every query filters by the current user's ID.
@@ -82,6 +92,10 @@ docs/            design.md, architecture.md
 - **Database constraints are a second line of defence** behind the domain rules: one Inbox per user (partial unique index), project names unique per user ignoring case (`lower(name)`), valid statuses and priorities, length limits, `completed_at` set exactly when the task is done, and cascading deletes. Schema source: `server/db/schema.ts`; migrations: `drizzle/`.
 - **`dueDate` is a date without a time** (`YYYY-MM-DD`). Deadlines are calendar days, and storing a timestamp would shift dates for users in other time zones.
 - **Deleting a project deletes its tasks and their subtasks.** The UI shows the counts from `planProjectDeletion` and asks for confirmation. Deleting a task deletes its subtasks.
+- **Calendar events outlive a deleted task** *(M9)*: they are unlinked in the same transaction and stay on the calendar. The task foreign key has no cascade, so a bug can never silently delete calendar data.
+- **Instants are UTC; wall-clock rules use the event's IANA zone** *(M9)*: "every Monday at 09:00" stays at 09:00 across daylight-saving changes (`src/domain/zonedTime.ts`, tested for gaps and overlaps). **The time zone in the user's settings is authoritative** for everything: the calendar (FullCalendar with the Luxon plugin draws in that IANA zone), "today" and deadlines, event dialogs, the agenda, proposals and the scheduler. The device's zone is only the default until settings are saved; the calendar says when the two differ. Tested with the device in New York and the settings in Berlin (Playwright), and with Tokyo in the browser tests.
+- **Effort** *(M9)*: estimate, completed (sessions marked done), planned (upcoming, not skipped), missed (past and never marked — neither done nor planned, so it is rescheduled) and remaining (= estimate − completed). The scheduler only places estimate − completed − planned (`src/domain/effort.ts`).
+- Migration `0002_calendar_ai` is **additive only** (new tables, one nullable column). It was applied to the Neon development branch after a verified backup; existing rows were compared before and after and are byte-identical.
 
 ### Domain rules (implemented in M4, `src/domain/`)
 
@@ -222,16 +236,50 @@ Production **refuses to start** until the items marked ⛔ are done (`server/env
 | Keep checks on | Never set `disableOriginCheck` / `disableCSRFCheck`, or loosen the redirect check in `server/app.ts`; they're forced on deliberately (M8 audit, finding 1) |
 | Separate data | Never copy development data (Neon `development` branch, `.backups/`, PGlite) into production; production starts empty from the migrations |
 | Re-run | `npm run test:e2e` against a preview deployment, and the isolation tests |
+| AI provider *(M9)* | Only after approval: `AI_PROVIDER=anthropic`, a production-only `ANTHROPIC_API_KEY` with a monthly spending limit in the Anthropic Console, `AI_MODEL`, `AI_DAILY_REQUEST_LIMIT` |
+| AI burst limit *(M9)* | The per-minute limit is in memory, so it is per serverless instance; the daily limit in the database is the binding one. Move the burst limit to the database if abuse appears |
+| Proposal cleanup *(M9)* | Schedule deletion of decided/expired `ai_proposal` rows (they hold copies of task titles) |
 
-## 7. AI Task Breakdown flow *(M9)*
+## 7. AI workspace, calendar and scheduling *(M9)*
 
-1. The user describes a goal, and the client calls `POST /api/ai/breakdown`.
-2. The server checks the session and the daily quota, then calls the Claude API asking for structured output (a list of tasks, each with optional subtasks).
-3. The response is validated with Zod and returned as a **draft**. Nothing is saved.
-4. The user edits, removes or reorders the draft tasks, then approves.
-5. The client sends the approved tasks to the normal create endpoint, which runs the same validation and ownership checks as any other write.
+### Principles
+1. **The AI never changes data.** Every change it suggests becomes a stored **proposal** that the user reviews (and can trim item by item) before approving. AI output is never treated as authorization.
+2. **Deterministic where it matters.** Time slots, conflicts, workload and progress numbers are computed by tested domain code, not by a language model. The AI can ask for a schedule; the scheduler decides the times.
+3. **Provider-independent and free by default.** Features use the `AiProvider` interface. The demo provider runs offline with rules over the user's real data and template plans; its output is labelled “Demo AI” everywhere and is never presented as AI-generated.
 
-A single server endpoint, with no agents or orchestration: the feature doesn't need more.
+### Flows
+| Flow | Endpoint | What happens |
+|---|---|---|
+| Assistant | `POST /api/ai/chat` | Session → limits → bounded context of *this user's* data → provider → `assistantTurnSchema` → intent: `answer`, `clarify`, `propose_changes` (allowlisted operations → `changes` proposal), `propose_schedule` (the scheduler builds a `schedule` proposal), `propose_plan` (hands the goal to the plan builder). |
+| Plan builder | `POST /api/ai/plan` | Goal, details, deadline, hours/week → `projectPlanSchema` (phases → tasks → subtasks, priorities, estimates, due dates clamped to today…deadline, dependencies only on earlier tasks, clarifying questions) → `plan` proposal. The user edits it freely; approval creates a **new** project (never merges; a taken name gets “(2)”). Phases and dependencies are kept in the task description (no new tables). |
+| Task help | `POST /api/ai/tasks/:id/assist` | Explain / break down / checklist / outline / next step. Advice is shown as text; checklist items become an `add_subtasks` proposal. |
+| Scheduling | `POST /api/schedule/proposals` | `fill` places open tasks into free time; `replan` may also move or remove *future, single, task-linked work sessions* of the selected tasks (past sessions, recurring events, meetings and personal time are never touched). The proposal lists every create/move (before → after)/remove and a plain-language explanation, including what doesn't fit and why. |
+| Approval | `POST /api/proposals/:id/apply`, `/reject` | One transaction: atomic claim (`UPDATE … WHERE status = 'pending' AND expires_at > now()`), then stale checks (every referenced task/event's `updatedAt` must match the proposal's basis), then conflict checks against the current calendar, then the changes through the normal user-scoped stores and domain validation. Double clicks, replays and parallel tabs get `409 PROPOSAL_DECIDED`; out-of-date previews `409 PROPOSAL_STALE` / `SCHEDULE_CONFLICT`. |
+
+### Scheduling algorithm (`src/domain/scheduling.ts`)
+Free time = working days × working hours in the preference time zone, from the next quarter hour at least 10 minutes ahead, minus every existing occurrence. Tasks are placed in **dependency order** (a topological order; among tasks that are ready, earliest *effective* deadline first — a prerequisite inherits the earliest deadline of the tasks that depend on it — then priority, then age). Each task needs only its remaining effort (estimate − completed − already planned). Sessions are at most `sessionMinutes`, separated by `breakMinutes`, prefer the focus period, never start before every prerequisite's last session ends, never pass the end of the due date, and never exceed `maxDailyMinutes` of work per day (existing work sessions count). Time skipped before a dependency-constrained session stays free for other tasks. When only some tasks are chosen, their open prerequisites are added and the explanation says so. Whatever doesn't fit is reported with the reason: not enough time, deadline passed, blocked by a prerequisite that doesn't fit, or part of a circular dependency. Greedy is simple, explainable and fast; it doesn't optimize globally (documented limitation).
+
+### Security of AI features
+- **Bounded, minimal context**: at most 20 project names, 40 open tasks and 40 upcoming events; titles truncated; no emails, user ids or other users' data. Task descriptions are sent only for help on that one task (first 1,500 characters).
+- **Prompt injection**: user data is inside a fenced block (`<<<USER_DATA … USER_DATA>>>`), fence markers inside user text are neutralized, and the prompt says it is data. That is *not* relied on: outputs are Zod-validated (twice: in the provider and in the service), operations come from a four-item allowlist (`update_task`, `add_subtasks`, `create_event`, `move_event`; no deletes, no SQL, no code), operations on ids the model wasn't shown are dropped, and approval re-checks ownership server-side.
+- **Rendering**: AI text is rendered as plain text, never HTML.
+- **Limits**: per-user daily request limit in the database (atomic upsert, default 20), a per-minute burst limit (10), 2000-character messages, the global 64 KB body limit, output token caps per request type (2,000 / plan 8,000, leaving room for adaptive thinking), `effort: low`, a 30 s timeout and two SDK retries.
+- **Spending cap** (`AI_BUDGET_USD`, default 1, **application-wide**), enforced by the spending ledger (`server/ai/spendLedger.ts`): before each real request its worst case (generous input estimate + the output cap, at the official price) is **reserved** with one conditional `UPDATE` on a single counter row ("add X only if the total stays ≤ cap"). PostgreSQL row locking applies concurrent reservations one after another, so simultaneous requests can't exceed the cap together (tested with 50 concurrent reservations on PGlite and 20 parallel connections on Neon). Afterwards the reservation is **settled** to the actual cost from the reported token usage — also when the model answered but refused or returned invalid output, since that was billed — **released** for API error responses (not billed), or **kept** at the worst case when the cost is unknown (timeout). The ledger counts only what this app requested through this database; the Anthropic Console is the authoritative bill for the whole account (e.g. the first verification request on 2026-11-13, $0.000451, ran on a throwaway database and isn't in the ledger). Auto-reload stays off.
+- **Fallback**: when the cap is reached or the provider is unreachable (timeout, rate limit, outage), the request is answered by Demo AI and labelled so ("Demo AI" badge plus a sentence saying why). Invalid model output is an error, not a silent fallback.
+- **Secrets and logs**: `ANTHROPIC_API_KEY` is server-only (never `VITE_`); logs contain only error codes, never prompts, content or keys. Tests and E2E can never select the paid provider (`loadEnv` refuses it under `NODE_ENV=test`; Playwright pins `AI_PROVIDER=mock`).
+
+### AI provider and cost *(decision pending)*
+Prices from the official pricing page (checked 2026-11-12), per million tokens input / output: **Claude Haiku 5.5 $0.10 / $0.50** (prompts ≤ 100K tokens), Sonnet 5.5 $2 / $10, Opus 5.5 $4 / $20. Our prompts are ~1–6K tokens.
+
+| Request | Tokens (in / out, estimated) | Haiku 5.5 | Sonnet 5.5 |
+|---|---|---|---|
+| Assistant turn | ~5,000 / ~500–1,000 | ≈ $0.001 | ≈ $0.02 |
+| Plan | ~1,000 / ~2,000–5,000 | ≈ $0.002–0.003 | ≈ $0.04–0.05 |
+| Task help | ~800 / ~500–1,000 | ≈ $0.0006 | ≈ $0.01 |
+
+At the default limit of 20 requests per user per day, the worst case is about **$0.06 per user per day on Haiku 5.5**; realistic development use (a few hundred requests) costs well under $1. **Decision (2026-11-12):** Claude Haiku 5.5 (`claude-haiku-5-5`) with `effort: low`, paid from the developer's existing credits ($4.96, auto-reload off), with the app's own cap at $1.00. Real calls only after the developer approved the first request. `npm run ai:usage` reports requests, tokens and cost (counts only).
+
+**Measured (2026-11-13, Haiku 5.5, effort low, sample data):** assistant answers ≈ 3,500–3,700 input / 120–200 output tokens ≈ $0.0004–0.0005; a goal plan ≈ 2,000 / 1,150 ≈ $0.0008; task help ≈ 680 / 250 ≈ $0.0002. Six requests together cost $0.0025. The $1.00 cap is therefore roughly 2,000 assistant answers.
 
 ## 8. Testing strategy
 
@@ -241,7 +289,9 @@ A single server endpoint, with no agents or orchestration: the feature doesn't n
 | Components | Vitest + React Testing Library | User-visible behaviour, accessibility queries (`getByRole`) |
 | API | Vitest + PGlite | Each endpoint: validation, ownership, isolation between users |
 | End to end | Playwright (M8), `npm run test:e2e` | Registration with email confirmation, login, logout, password reset, sessions ending elsewhere, projects/tasks/subtasks, isolation between users, error states, phone layouts. Production build + real API on a temporary PGlite database; also in CI |
-| AI | Vitest with a mocked model response | Validation, draft handling, quota; no real API calls in CI |
+| Domain (M9) | Vitest | Time zones and DST, recurrence, conflicts, scheduling, insights, AI schemas, context bounding, plan editing |
+| AI and workspace API (M9) | Vitest + PGlite, scripted fake providers | Proposals only after approval, double/concurrent approval, stale and conflicting previews, expiry, prompt injection, unseen/foreign ids, invalid model output, provider outages, daily and burst limits, isolation of events, proposals, conversations and preferences; the Claude adapter with a fake SDK client (no network) |
+| End to end (M9) | Playwright | Settings → plan builder (edit, approve) → task AI help → schedule proposal → recurring event and single-occurrence edit → assistant change approval → insights → sign out/in persistence; cross-user isolation; phone layouts. Demo AI only |
 
 CI (GitHub Actions) runs lint, typecheck, tests and the build on every pull request and every push to `main`.
 
@@ -332,6 +382,20 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-11 | M7 fix: in development, trust all loopback names of the dev server's origin; Vite's port is fixed (`strictPort`) | Sign-up failed with 403 when the app was opened at `127.0.0.1:5173` instead of `localhost:5173` (same computer, different origin). Production still trusts exactly one origin |
 | 2026-11-11 | M7: the UI cache is cleared on every sign-in, sign-up and sign-out | Prevents one user's cached data from flashing up for the next user of the same browser |
 | 2026-11-11 | M6: a `user` table shaped like Better Auth's, plus a development user | M7 plugs in real accounts without a data migration; the development user can't run in production |
+| 2026-11-12 | M9: AI suggestions are stored proposals applied only on approval, atomically and re-validated | AI output is never authorization; prevents duplicate, replayed and stale applications |
+| 2026-11-12 | M9: deterministic scheduler in the domain; the AI only triggers it | Explainable, testable, never overbooks; no paid tokens for arithmetic |
+| 2026-11-12 | M9: recurring events stored as rules with exceptions, expanded per requested range (max 62 days) | No unlimited rows; edits of one, following or all occurrences |
+| 2026-11-12 | M9: FullCalendar 6 (MIT) for the calendar UI, with an agenda list as the keyboard alternative | Proven views and drag-and-drop; drag alone isn't accessible |
+| 2026-11-12 | M9: provider abstraction with a free demo provider as default; Claude adapter off until approved | Develop and test every AI flow at zero cost; switching providers touches one file |
+| 2026-11-12 | M9: plan phases and dependencies kept in task descriptions | Avoids new tables for information the scheduler doesn't use yet |
+| 2026-11-12 | M9: navigation Dashboard · Calendar · Projects · AI Assistant · Insights · Settings; the task list moves to `/app/projects` | One place per feature; the dashboard becomes an overview |
+| 2026-11-12 | M9: structured task dependencies (`task_dependency`), acyclic, respected by the scheduler | Requested by the developer; prerequisites must never be scheduled after the work that needs them |
+| 2026-11-12 | M9: sessions are marked completed/skipped; only completed work reduces remaining effort | Missed or cancelled sessions must not count as done, and done work must not be scheduled again |
+| 2026-11-12 | M9: the settings time zone is authoritative for display and scheduling (FullCalendar Luxon plugin, MIT) | One "today" and one clock everywhere, whatever the device says |
+| 2026-11-12 | M9: an app-level AI spending cap with labelled Demo AI fallback | Protects limited prepaid credits; the app keeps working when the cap is reached |
+| 2026-11-13 | M9: AI spending in an app-wide ledger with atomic reservations, independent of user accounts (migration 0004) | Per-user cost rows would disappear with deleted accounts, and check-then-call let concurrent requests overshoot the cap |
+| 2026-11-13 | M9: the assistant sees task dependencies (`after="…"`) | Found in the first real tests: it advised starting a task before its prerequisite |
+| 2026-11-13 | `npm run db:backup` is the committed, self-verifying backup step before migrations | An ad-hoc backup script disappeared between sessions and its failure was masked; the migration (additive) ran without a fresh backup. Data was verified identical afterwards |
 | 2026-11-10 | M10 is a complete visual redesign of the landing page and dashboard | Decided in the M5 review: the current look is a functional placeholder. Until M10, work goes into a complete, working application |
 | 2026-11-10 | M5: project navigation is a sidebar on large screens and a collapsible list on small ones | Projects need a permanent home on desktop; on phones the tasks stay first |
 | 2026-11-10 | M5: the dashboard is a lazy-loaded route (`/app/*`) | Keeps the landing page bundle within its 90 kB budget (88.6 kB gzip measured) |

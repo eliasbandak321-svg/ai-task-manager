@@ -7,6 +7,7 @@ import { createMemoryStorage, LocalRepository } from '../data/localRepository'
 import { createQueryClient } from '../data/queryClient'
 import { createFakeAuthClient } from '../test/fakeAuthClient'
 import type { TaskRepository } from '../data/repository'
+import { createFakeWorkspaceClient } from '../test/fakeWorkspaceClient'
 import DashboardApp from './DashboardApp'
 
 // Full-app integration tests do a lot of rendering; give them room on slow CI machines.
@@ -28,7 +29,7 @@ function createRepository() {
 }
 
 function renderDashboard(
-  path = '/app',
+  path = '/app/projects',
   repository: TaskRepository = createRepository(),
   authClient = createFakeAuthClient({ signedIn: true }),
 ) {
@@ -40,7 +41,14 @@ function renderDashboard(
       <Routes>
         <Route
           path="/*"
-          element={<DashboardApp repository={repository} authClient={authClient} queryClient={queryClient} />}
+          element={
+            <DashboardApp
+              repository={repository}
+              authClient={authClient}
+              queryClient={queryClient}
+              workspace={createFakeWorkspaceClient(repository)}
+            />
+          }
         />
       </Routes>
       <LocationDisplay />
@@ -99,7 +107,7 @@ describe('dashboard: states', () => {
   it('shows an error with a working retry when loading fails', async () => {
     const repository = createRepository()
     const listTasks = vi.spyOn(repository, 'listTasks').mockRejectedValueOnce(new Error('network down'))
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent("Your tasks couldn't be loaded")
@@ -114,7 +122,7 @@ describe('dashboard: states', () => {
   it('shows "not found" for an unknown project', async () => {
     renderDashboard('/app/projects/00000000-0000-4000-8000-ffffffffffff')
     expect(await pageHeading('Project not found')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Go to all tasks' })).toHaveAttribute('href', '/app')
+    expect(screen.getByRole('link', { name: 'Go to all tasks' })).toHaveAttribute('href', '/app/projects')
   })
 })
 
@@ -135,7 +143,7 @@ describe('dashboard: tasks', () => {
 
   it('creates a task with all its details', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     await user.click(await screen.findByRole('button', { name: 'New task' }))
     const dialog = screen.getByRole('dialog', { name: 'New task' })
@@ -156,7 +164,7 @@ describe('dashboard: tasks', () => {
 
   it('edits a task in its details dialog', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     await user.click(await screen.findByRole('button', { name: 'Buy milk' }))
     const dialog = screen.getByRole('dialog', { name: 'Task details' })
@@ -175,7 +183,7 @@ describe('dashboard: tasks', () => {
 
   it('changes the status from the list and updates the statistics', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     const progress = await screen.findByRole('progressbar', { name: 'Overall progress' })
     expect(progress).toHaveAttribute('value', '0')
@@ -194,7 +202,7 @@ describe('dashboard: tasks', () => {
   it('rolls back an optimistic status change that fails to save, and says why', async () => {
     const { repository } = await seededRepository()
     vi.spyOn(repository, 'updateTask').mockRejectedValueOnce(new RepositoryError("Your changes couldn't be saved."))
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     const status = await screen.findByRole('combobox', { name: 'Status of “Buy milk”' })
     await user.selectOptions(status, 'Done')
@@ -205,7 +213,7 @@ describe('dashboard: tasks', () => {
 
   it('confirms a status change even when a filter hides the task afterwards', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app?status=todo', repository)
+    const { user } = renderDashboard('/app/projects?status=todo', repository)
 
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Status of “Buy milk”' }), 'Done')
 
@@ -215,7 +223,7 @@ describe('dashboard: tasks', () => {
 
   it('deletes a task and its subtasks only after confirmation', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     await user.click(await screen.findByRole('button', { name: 'Write report' }))
     await user.click(screen.getByRole('button', { name: 'Delete task' }))
@@ -233,7 +241,7 @@ describe('dashboard: tasks', () => {
 describe('dashboard: subtasks', () => {
   it('adds, checks off, reorders, renames and deletes subtasks', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     await user.click(await screen.findByRole('button', { name: 'Write report' }))
     const dialog = screen.getByRole('dialog', { name: 'Task details' })
@@ -246,7 +254,7 @@ describe('dashboard: subtasks', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Move “Add charts” up' }))
     await waitFor(() =>
-      expect(within(dialog).getAllByRole('checkbox').map((box) => box.closest('label')?.textContent)).toEqual([
+      expect(within(within(dialog).getByRole('region', { name: 'Subtasks' })).getAllByRole('checkbox').map((box) => box.closest('label')?.textContent)).toEqual([
         'Add charts',
         'Draft outline',
       ]),
@@ -273,7 +281,7 @@ describe('dashboard: subtasks', () => {
 
   it('cancels a rename with Escape without closing the task dialog', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     await user.click(await screen.findByRole('button', { name: 'Write report' }))
     const dialog = screen.getByRole('dialog', { name: 'Task details' })
@@ -309,7 +317,7 @@ describe('dashboard: projects', () => {
 
   it('explains duplicate and reserved names on the field', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     await user.click(await screen.findByRole('button', { name: 'New project' }))
     const name = within(screen.getByRole('dialog')).getByRole('textbox', { name: 'Project name' })
@@ -361,7 +369,7 @@ describe('dashboard: projects', () => {
     await user.click(within(confirm).getByRole('button', { name: 'Delete project and 2 tasks' }))
 
     expect(await pageHeading('All tasks')).toBeInTheDocument()
-    expect(location()).toBe('/app')
+    expect(location()).toBe('/app/projects')
     expect(screen.getByText('Deleted “Work”')).toBeInTheDocument()
     await waitFor(() => expect(projectLink(/^Work/)).not.toBeInTheDocument())
     expect((await repository.listTasks()).map((task) => task.title)).toEqual(['Buy milk'])
@@ -372,7 +380,7 @@ describe('dashboard: projects', () => {
 describe('dashboard: search, filters and sorting', () => {
   it('filters by search, status and deadline, keeping the state in the URL', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
 
     // Default sort: by deadline, undated tasks last.
     await screen.findByRole('list', { name: 'Tasks' })
@@ -381,13 +389,13 @@ describe('dashboard: search, filters and sorting', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'report')
     expect(taskTitles()).toEqual(['Write report'])
     expect(screen.getByText('Showing 1 of 3 tasks')).toBeInTheDocument()
-    expect(location()).toBe('/app?q=report')
+    expect(location()).toBe('/app/projects?q=report')
 
     await user.click(screen.getByRole('checkbox', { name: 'Done' }))
     expect(screen.getByText('No tasks match your filters')).toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'Clear filters' })[0])
     expect(taskTitles()).toHaveLength(3)
-    expect(location()).toBe('/app')
+    expect(location()).toBe('/app/projects')
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Deadline' }), 'Overdue')
     expect(taskTitles()).toEqual(['Write report'])
@@ -395,19 +403,19 @@ describe('dashboard: search, filters and sorting', () => {
 
   it('sorts by the chosen field and direction', async () => {
     const { repository } = await seededRepository()
-    const { user } = renderDashboard('/app', repository)
+    const { user } = renderDashboard('/app/projects', repository)
     await screen.findByRole('list', { name: 'Tasks' })
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Sort by' }), 'Title')
     expect(taskTitles()).toEqual(['Buy milk', 'Plan sprint', 'Write report'])
     await user.selectOptions(screen.getByRole('combobox', { name: 'Order' }), 'Descending')
     expect(taskTitles()).toEqual(['Write report', 'Plan sprint', 'Buy milk'])
-    expect(location()).toBe('/app?sort=title&dir=desc')
+    expect(location()).toBe('/app/projects?sort=title&dir=desc')
   })
 
   it('restores filters from the URL, ignoring invalid values', async () => {
     const { repository } = await seededRepository()
-    renderDashboard('/app?priority=high&priority=urgent&sort=nonsense', repository)
+    renderDashboard('/app/projects?priority=high&priority=urgent&sort=nonsense', repository)
 
     await screen.findByRole('list', { name: 'Tasks' })
     expect(taskTitles()).toEqual(['Write report'])

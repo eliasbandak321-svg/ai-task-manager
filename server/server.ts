@@ -1,3 +1,4 @@
+import { aiSettingsFromEnv } from './ai/createProvider'
 import { createApp } from './app'
 import { createAuth, sessionUser } from './auth'
 import type { Database } from './db/client'
@@ -32,6 +33,7 @@ export function buildServer(
     trustedOrigins: origins,
     explainBlockedOrigins: env.NODE_ENV !== 'production',
     authHandler: auth.handler,
+    ai: aiSettingsFromEnv(env),
   })
   return { app, auth, origins, mailer }
 }

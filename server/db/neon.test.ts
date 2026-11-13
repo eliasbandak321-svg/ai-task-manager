@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
-import { inArray } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
+import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { describeRepositoryContract } from '../../src/test/repositoryContract'
 import { databaseConfig, loadEnv } from '../env'
@@ -7,7 +8,11 @@ import { createTestUser } from '../test/testDatabase'
 import { openDatabase, type DatabaseHandle } from './client'
 import { DbRepository } from './dbRepository'
 import { assertSchemaUpToDate } from './migrations'
-import { users } from './schema'
+import { aiSpendLedger, aiSpendTotal, users } from './schema'
+import { SpendLedger } from '../ai/spendLedger'
+import { AiService } from '../ai/aiService'
+import { MockAiProvider } from '../ai/mockProvider'
+import { Workspace } from '../workspace/workspace'
 
 /*
   Opt-in: `npm run test:neon` runs the repository contract against the real Neon development
@@ -28,7 +33,9 @@ describe.skipIf(!enabled)('Neon development branch', () => {
 
   beforeAll(async () => {
     if (existsSync('.env')) process.loadEnvFile('.env')
-    const env = loadEnv(process.env)
+    // Tests never use the paid AI provider, whatever .env says; the key isn't kept around.
+    delete process.env.ANTHROPIC_API_KEY
+    const env = loadEnv({ ...process.env, AI_PROVIDER: 'mock' })
     if (env.DATABASE_PROVIDER !== 'neon') {
       throw new Error('test:neon needs DATABASE_PROVIDER=neon in .env')
     }
@@ -51,6 +58,23 @@ describe.skipIf(!enabled)('Neon development branch', () => {
 
   describeRepositoryContract('DbRepository on Neon', async () => new DbRepository(handle.db, await newUser()))
 
+  it('enforces the AI spending cap under truly parallel requests (separate counter, cleaned up)', async () => {
+    // Its own counter key: the app's real 'app' counter is never touched.
+    const key = `neon-test-${randomUUID()}`
+    const ledger = new SpendLedger(handle.db, { key })
+    const ids: (string | null)[] = []
+    try {
+      ids.push(...(await Promise.all(Array.from({ length: 20 }, () => ledger.reserve('test', 'claude-haiku-5-5', 1000, 5000)))))
+      expect(ids.filter((id) => id !== null)).toHaveLength(5)
+      expect(await ledger.committed()).toBe(5000)
+    } finally {
+      // Remove exactly the rows this test created.
+      const created = ids.filter((id): id is string => id !== null)
+      if (created.length > 0) await handle.db.delete(aiSpendLedger).where(inArray(aiSpendLedger.id, created))
+      await handle.db.delete(aiSpendTotal).where(eq(aiSpendTotal.key, key))
+    }
+  })
+
   it('keeps two users apart on Neon', async () => {
     const alice = new DbRepository(handle.db, await newUser())
     const bob = new DbRepository(handle.db, await newUser())
@@ -58,5 +82,60 @@ describe.skipIf(!enabled)('Neon development branch', () => {
     const task = await alice.createTask({ projectId: inbox.id, title: 'Private' })
     expect(await bob.listTasks()).toEqual([])
     await expect(bob.updateTask(task.id, { title: 'Hacked' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('runs the M9 calendar, scheduling, plan and assistant flows on Neon (demo AI)', async () => {
+    const workspace = new Workspace(handle.db, await newUser())
+    const ai = new AiService(workspace, { provider: new MockAiProvider(), dailyRequestLimit: 50 })
+    await workspace.preferences.save({
+      timeZone: 'Europe/Berlin',
+      useCase: 'student',
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      dayStartMinutes: 0,
+      dayEndMinutes: 1440,
+      focusPeriod: 'none',
+      sessionMinutes: 60,
+      breakMinutes: 0,
+      maxDailyMinutes: 960,
+    })
+
+    const plan = await ai.plan({ goal: 'Neon contract goal' })
+    const applied = await workspace.apply(plan.id, {})
+    expect(applied.status).toBe('applied')
+    await expect(workspace.apply(plan.id, {})).rejects.toMatchObject({ code: 'PROPOSAL_DECIDED' })
+
+    const now = new Date()
+    const series = await workspace.calendar.create({
+      title: 'Standup',
+      category: 'meeting',
+      startAt: new Date(now.getTime() + 86_400_000).toISOString(),
+      endAt: new Date(now.getTime() + 86_400_000 + 900_000).toISOString(),
+      timeZone: 'Europe/Berlin',
+      recurrence: { freq: 'daily', count: 5 },
+    })
+    const week = await workspace.calendar.occurrences(now, new Date(now.getTime() + 8 * 86_400_000))
+    expect(week.filter((o) => o.eventId === series.id)).toHaveLength(5)
+
+    const today = now.toISOString().slice(0, 10)
+    const schedule = await workspace.proposeSchedule({ from: today, to: today })
+    if (schedule.payload.kind === 'schedule' && schedule.payload.items.length > 0) {
+      await workspace.apply(schedule.id, {})
+    }
+
+    const chat = await ai.chat({ message: 'What should I focus on?' })
+    expect(chat.message.source).toBe('mock')
+
+    // Dependencies (migration 0003): stored, cycles refused, effort computed.
+    const [first, second] = (await workspace.tasks.listTasks()).slice(0, 2)
+    await workspace.dependencies.set(first.id, { dependsOn: [] })
+    await workspace.dependencies.set(second.id, { dependsOn: [first.id] })
+    await expect(workspace.dependencies.set(first.id, { dependsOn: [second.id] })).rejects.toMatchObject({ code: 'DEPENDENCY_CYCLE' })
+    expect((await workspace.efforts())[first.id]).toMatchObject({ completedMinutes: 0 })
+
+    // Another user sees none of it.
+    const other = new Workspace(handle.db, await newUser())
+    expect(await other.calendar.occurrences(now, new Date(now.getTime() + 8 * 86_400_000))).toEqual([])
+    await expect(other.proposals.get(plan.id)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(await new AiService(other, { provider: new MockAiProvider(), dailyRequestLimit: 50 }).listConversations()).toEqual([])
   })
 })

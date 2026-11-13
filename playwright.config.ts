@@ -33,6 +33,10 @@ const serverEnv = {
   MAIL_DIR,
   BETTER_AUTH_SECRET: 'e2e-test-secret-not-used-anywhere-else-0123456789',
   APP_ORIGIN: 'http://localhost:5175',
+  // AI always uses the free offline demo provider: the tests can never incur API charges,
+  // even if the shell exports an API key.
+  AI_PROVIDER: 'mock',
+  ANTHROPIC_API_KEY: '',
   API_PORT: '8790',
   WEB_PORT: '5175',
 }

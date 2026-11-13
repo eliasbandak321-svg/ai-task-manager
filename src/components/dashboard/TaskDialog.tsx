@@ -23,11 +23,13 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Dialog } from '../ui/Dialog'
 import { Field } from '../ui/Field'
 import { controlClass } from '../ui/styles'
+import { TaskAiHelp } from '../workspace/TaskAiHelp'
+import { TaskPlanning } from '../workspace/TaskPlanning'
 import { SubtaskList } from './SubtaskList'
 
 type TaskDialogProps =
   | { mode: 'create'; defaultProjectId: string; projects: readonly Project[]; onClose: () => void }
-  | { mode: 'edit'; task: Task; subtasks: readonly Subtask[]; projects: readonly Project[]; onClose: () => void }
+  | { mode: 'edit'; task: Task; subtasks: readonly Subtask[]; allTasks: readonly Task[]; projects: readonly Project[]; onClose: () => void }
 
 interface FormValues {
   title: string
@@ -37,9 +39,11 @@ interface FormValues {
   priority: TaskPriority
   /** '' means "no deadline" (that's what an empty date input gives). */
   dueDate: string
+  /** Effort estimate in minutes; '' means unknown. */
+  estimatedMinutes: string
 }
 
-const EDITABLE_FIELDS = ['title', 'description', 'projectId', 'status', 'priority', 'dueDate'] as const
+const EDITABLE_FIELDS = ['title', 'description', 'projectId', 'status', 'priority', 'dueDate', 'estimatedMinutes'] as const
 
 /**
  * Create a task with all its details, or view and edit an existing one. In edit mode the
@@ -56,6 +60,7 @@ export function TaskDialog(props: TaskDialogProps) {
     status: task?.status ?? 'todo',
     priority: task?.priority ?? 'medium',
     dueDate: task?.dueDate ?? '',
+    estimatedMinutes: task?.estimatedMinutes ? String(task.estimatedMinutes) : '',
   }))
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({})
   const [formError, setFormError] = useState<string | null>(null)
@@ -73,7 +78,11 @@ export function TaskDialog(props: TaskDialogProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormError(null)
-    const input = { ...values, dueDate: values.dueDate === '' ? null : values.dueDate }
+    const input = {
+      ...values,
+      dueDate: values.dueDate === '' ? null : values.dueDate,
+      estimatedMinutes: values.estimatedMinutes.trim() === '' ? null : Number(values.estimatedMinutes),
+    }
 
     try {
       if (!task) {
@@ -188,10 +197,27 @@ export function TaskDialog(props: TaskDialogProps) {
               />
             )}
           </Field>
+          <Field label="Estimate (minutes)" hint="Optional; used by the scheduler" error={errors.estimatedMinutes}>
+            {(control) => (
+              <input
+                {...control}
+                type="number"
+                inputMode="numeric"
+                min={5}
+                max={6000}
+                step={5}
+                value={values.estimatedMinutes}
+                onChange={(event) => set('estimatedMinutes', event.target.value)}
+                className={controlClass}
+              />
+            )}
+          </Field>
         </div>
       </form>
 
       {props.mode === 'edit' && task && <SubtaskList task={task} subtasks={props.subtasks} />}
+      {props.mode === 'edit' && task && <TaskPlanning task={task} tasks={props.allTasks} />}
+      {props.mode === 'edit' && task && <TaskAiHelp task={task} />}
 
       {formError && (
         <p role="alert" className="mt-4 text-sm text-danger">
@@ -223,7 +249,7 @@ export function TaskDialog(props: TaskDialogProps) {
               {props.mode === 'edit' && props.subtasks.length > 0
                 ? ` and its ${pluralize(props.subtasks.length, 'subtask')}`
                 : ''}
-              . This can't be undone.
+              . This can't be undone. Calendar sessions linked to it stay on your calendar.
             </p>
           }
           confirmLabel="Delete task"

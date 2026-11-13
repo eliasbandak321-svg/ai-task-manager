@@ -189,6 +189,7 @@ export function TasksPage() {
           mode="edit"
           task={openTask}
           subtasks={getTaskSubtasks(subtasks, openTask)}
+          allTasks={tasks}
           projects={projects}
           onClose={closeDialog}
         />
@@ -202,7 +203,7 @@ export function TasksPage() {
           onClose={closeDialog}
           onDeleted={() => {
             closeDialog()
-            navigate('/app')
+            navigate('/app/projects')
           }}
         />
       )}
