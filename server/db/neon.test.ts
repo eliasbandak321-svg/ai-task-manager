@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
-import { inArray } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
+import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { describeRepositoryContract } from '../../src/test/repositoryContract'
 import { databaseConfig, loadEnv } from '../env'
@@ -7,7 +8,8 @@ import { createTestUser } from '../test/testDatabase'
 import { openDatabase, type DatabaseHandle } from './client'
 import { DbRepository } from './dbRepository'
 import { assertSchemaUpToDate } from './migrations'
-import { users } from './schema'
+import { aiSpendLedger, aiSpendTotal, users } from './schema'
+import { SpendLedger } from '../ai/spendLedger'
 import { AiService } from '../ai/aiService'
 import { MockAiProvider } from '../ai/mockProvider'
 import { Workspace } from '../workspace/workspace'
@@ -55,6 +57,23 @@ describe.skipIf(!enabled)('Neon development branch', () => {
   }
 
   describeRepositoryContract('DbRepository on Neon', async () => new DbRepository(handle.db, await newUser()))
+
+  it('enforces the AI spending cap under truly parallel requests (separate counter, cleaned up)', async () => {
+    // Its own counter key: the app's real 'app' counter is never touched.
+    const key = `neon-test-${randomUUID()}`
+    const ledger = new SpendLedger(handle.db, { key })
+    const ids: (string | null)[] = []
+    try {
+      ids.push(...(await Promise.all(Array.from({ length: 20 }, () => ledger.reserve('test', 'claude-haiku-5-5', 1000, 5000)))))
+      expect(ids.filter((id) => id !== null)).toHaveLength(5)
+      expect(await ledger.committed()).toBe(5000)
+    } finally {
+      // Remove exactly the rows this test created.
+      const created = ids.filter((id): id is string => id !== null)
+      if (created.length > 0) await handle.db.delete(aiSpendLedger).where(inArray(aiSpendLedger.id, created))
+      await handle.db.delete(aiSpendTotal).where(eq(aiSpendTotal.key, key))
+    }
+  })
 
   it('keeps two users apart on Neon', async () => {
     const alice = new DbRepository(handle.db, await newUser())
