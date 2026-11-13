@@ -245,12 +245,13 @@ export class AiService {
     const now = this.workspace.now()
     const today = zonedParts(now, prefs.timeZone).date
     const range = zonedRange(today, addDays(today, 13), prefs.timeZone)
-    const [projects, tasks, upcoming] = await Promise.all([
+    const [projects, tasks, upcoming, dependencies] = await Promise.all([
       this.workspace.tasks.listProjects(),
       this.workspace.tasks.listTasks(),
       this.workspace.calendar.occurrences(now, range.end),
+      this.workspace.dependencies.list(),
     ])
-    return { projects, tasks, upcoming, prefs, now }
+    return { projects, tasks, upcoming, prefs, now, dependencies }
   }
 
   // ---------- Conversations ----------

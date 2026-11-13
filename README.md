@@ -103,6 +103,8 @@ Open the app at **http://localhost:5173** (`127.0.0.1:5173` works too). `npm run
 | `npm run db:migrate` | Apply pending migrations to the configured database (the only way migrations run; production needs `-- --confirm-production=<branch-id>`) |
 | `npm run test:e2e` | End-to-end tests in a real browser (Playwright; isolated temporary database). First time: `npx playwright install --with-deps chromium` |
 | `npm run test:neon` | Optional: run the repository tests against the Neon development branch (cleans up after itself) |
+| `npm run db:backup` | Save a verified, read-only snapshot of the database to `.backups/` (do this before migrations) |
+| `npm run ai:usage` | Show AI requests, tokens and recorded cost (counts only, no content) |
 
 ## What I'm Learning
 

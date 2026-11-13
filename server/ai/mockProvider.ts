@@ -97,7 +97,13 @@ export function mockAssistantTurn({ message, data }: AssistantRequest): Assistan
     return turn('answer', upcoming.length === 0 ? 'Your calendar has nothing planned for the next days.' : `Coming up:\n${upcoming.map((o) => { const p = zonedParts(new Date(o.start), data.prefs.timeZone); return `• ${p.date} ${String(Math.floor(p.minutes / 60)).padStart(2, '0')}:${String(p.minutes % 60).padStart(2, '0')} ${o.title}` }).join('\n')}`)
   }
   if (/\b(what should i|next|focus|priorit|important|start with)\b/.test(lower)) {
-    const ranked = [...open].sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]).slice(0, 3)
+    // Tasks still waiting for an open prerequisite can't be started yet.
+    const openIds = new Set(open.map((task) => task.id))
+    const blocked = new Set((data.dependencies ?? []).filter((edge) => openIds.has(edge.dependsOnId)).map((edge) => edge.taskId))
+    const ranked = open
+      .filter((task) => !blocked.has(task.id))
+      .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority])
+      .slice(0, 3)
     return turn('answer', ranked.length === 0 ? 'You have no open tasks. A good moment to plan your next goal!' : `Based on deadlines and priorities, I'd start with:\n${list(ranked)}`)
   }
   if (/\b(progress|how am i doing|summary|status|overview)\b/.test(lower)) {

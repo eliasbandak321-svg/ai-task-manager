@@ -81,6 +81,8 @@ Requires Node 26 (see `.nvmrc`). Develop inside WSL on Windows; Smart App Contro
 - `npm run dev:offline`: run the app on the embedded PGlite database instead of Neon
 
 - `npm run test:neon`: optional contract tests against the Neon development branch (cleans up its test users)
+- `npm run db:backup`: read-only, self-verifying JSON snapshot of the configured database into `.backups/`. Run it (with `set -o pipefail` if chained) before every migration
+- `npm run ai:usage`: AI requests, tokens and recorded cost per day from the app's spending ledger (counts only)
 
 Database: `.env` (git-ignored) holds `DATABASE_PROVIDER=neon`, `DATABASE_URL` for the Neon **development** branch and `NEON_BRANCH_ID`; the API refuses any other branch, and there is no silent fallback to PGlite. Never print, log or commit the connection string, and never touch the Neon `production` branch before M11. PGlite is used only by automated tests and by `npm run dev:offline`.
 

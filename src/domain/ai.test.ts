@@ -102,6 +102,26 @@ describe('assistant context', () => {
     expect(context.text.split('\n').filter((line) => line === DATA_FENCE_END)).toHaveLength(1)
   })
 
+  it('tells the model which tasks wait for open prerequisites', () => {
+    const survey = makeTask({ projectId: project.id, title: 'Collect survey data' })
+    const review = makeTask({ projectId: project.id, title: 'Write literature review' })
+    const finished = makeTask({ projectId: project.id, title: 'Pick a topic', status: 'done' })
+    const context = buildAssistantContext({
+      projects: [project],
+      tasks: [survey, review, finished],
+      upcoming: [],
+      prefs,
+      now,
+      dependencies: [
+        { taskId: review.id, dependsOnId: survey.id },
+        { taskId: review.id, dependsOnId: finished.id }, // done: no longer blocks
+      ],
+    })
+    const line = context.text.split('\n').find((entry) => entry.includes('"Write literature review"')) ?? ''
+    expect(line).toContain('after="Collect survey data"')
+    expect(line).not.toContain('Pick a topic')
+  })
+
   it('drops operations that reference anything the model was not shown', () => {
     const task = makeTask({ projectId: project.id })
     const occurrence: Occurrence = { eventId: ID, occurrenceStart: '', start: '2026-03-02T10:00:00.000Z', end: '2026-03-02T11:00:00.000Z', title: 'Standup', category: 'meeting', taskId: null, isRecurring: true, seriesId: null, sessionStatus: 'planned' }

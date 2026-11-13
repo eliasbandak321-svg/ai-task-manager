@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { EVENT_CATEGORIES, type Occurrence } from './calendar'
+import type { TaskDependency } from './dependencies'
 import { LIMITS } from './constants'
 import type { IsoDate } from './dates'
 import type { Preferences } from './scheduling'
@@ -203,6 +204,8 @@ export interface AssistantContextInput {
   upcoming: readonly Occurrence[]
   prefs: Preferences
   now: Date
+  /** Task dependencies, so advice respects "B only after A". */
+  dependencies?: readonly TaskDependency[]
 }
 
 export interface AssistantContext {
@@ -214,7 +217,15 @@ export interface AssistantContext {
 }
 
 /** Builds the bounded data block for a request (most relevant items first). */
-export function buildAssistantContext({ projects, tasks, upcoming, prefs, now }: AssistantContextInput): AssistantContext {
+export function buildAssistantContext({ projects, tasks, upcoming, prefs, now, dependencies }: AssistantContextInput): AssistantContext {
+  // Titles of the open tasks each task waits for (done prerequisites no longer block anything).
+  const titleOf = new Map(tasks.map((task) => [task.id, task]))
+  const openPrerequisiteTitles = (taskId: string) =>
+    (dependencies ?? [])
+      .filter((edge) => edge.taskId === taskId)
+      .map((edge) => titleOf.get(edge.dependsOnId))
+      .filter((prerequisite) => prerequisite !== undefined && prerequisite.status !== 'done')
+      .map((prerequisite) => sanitizeForContext((prerequisite as Task).title, 120))
   const today = zonedParts(now, prefs.timeZone).date
   const projectNames = new Map(projects.map((project) => [project.id, sanitizeForContext(project.name, 60)]))
   const open = tasks
@@ -244,6 +255,7 @@ export function buildAssistantContext({ projects, tasks, upcoming, prefs, now }:
         `priority=${task.priority}`,
         `due=${task.dueDate ?? 'none'}`,
         `estimate=${task.estimatedMinutes === null ? 'unknown' : `${task.estimatedMinutes}min`}`,
+        ...openPrerequisiteTitles(task.id).map((title) => `after="${title}"`),
       ].join(' '),
     ),
     `upcoming calendar (next ${events.length}):`,

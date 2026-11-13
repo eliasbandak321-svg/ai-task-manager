@@ -64,6 +64,16 @@ describe('assistant chat', () => {
     expect((await call(user, 'GET', '/api/ai/conversations')).body).toHaveLength(1)
   })
 
+  it('does not advise starting a task before its prerequisite (demo provider)', async () => {
+    const { call, user, task, chat } = await setup()
+    const survey = await task('Collect survey data', { dueDate: '2026-03-05' })
+    const review = await task('Write literature review', { dueDate: '2026-03-03', priority: 'high' })
+    await call(user, 'PUT', `/api/tasks/${review.id}/dependencies`, { dependsOn: [survey.id] })
+    const response = await chat('What should I focus on?')
+    expect(response.body.message.content).toContain('Collect survey data')
+    expect(response.body.message.content).not.toContain('Write literature review')
+  })
+
   it('turns a change request into a proposal and changes nothing until approved', async () => {
     const { call, user, task, chat } = await setup()
     const essay = await task('Submit essay')
