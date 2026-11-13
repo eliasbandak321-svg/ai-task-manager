@@ -390,7 +390,10 @@ export const aiUsage = pgTable(
     requests: integer('requests').notNull().default(0),
     inputTokens: integer('input_tokens').notNull().default(0),
     outputTokens: integer('output_tokens').notNull().default(0),
-    /** Cost of real provider calls in millionths of a US dollar (for the spending cap). */
+    /**
+     * Deprecated (migration 0003): spending is tracked in ai_spend_ledger since 0004, which
+     * survives account deletion. Kept (not dropped) because migrations here are additive only.
+     */
     costMicroUsd: bigint('cost_micro_usd', { mode: 'number' }).notNull().default(0),
   },
   (table) => [primaryKey({ columns: [table.userId, table.day] })],
@@ -425,5 +428,52 @@ export const taskDependencies = pgTable(
     }).onDelete('cascade'),
     index('task_dependency_user_idx').on(table.userId),
     check('task_dependency_not_self', sql`${table.taskId} <> ${table.dependsOnId}`),
+  ],
+)
+
+// ---------- AI spending (M9, migration 0004) ----------
+// Application-wide and deliberately NOT linked to user accounts: deleting a user must never
+// erase what the app has spent. No user ids, prompts or content are stored here.
+
+export const AI_SPEND_STATUSES = ['reserved', 'settled', 'released'] as const
+
+/**
+ * The single counter the spending cap is enforced on (one row, key 'app'). Reserving budget
+ * is one conditional UPDATE on this row, so concurrent requests are serialized by the
+ * database and can never push the total past the cap.
+ */
+export const aiSpendTotal = pgTable(
+  'ai_spend_total',
+  {
+    key: text('key').primaryKey(),
+    /** Reserved plus settled spending, in millionths of a US dollar. */
+    committedMicroUsd: bigint('committed_micro_usd', { mode: 'number' }).notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  () => [check('ai_spend_total_nonnegative', sql`committed_micro_usd >= 0`)],
+)
+
+/** One row per real-provider request: what was reserved, and what it actually cost. */
+export const aiSpendLedger = pgTable(
+  'ai_spend_ledger',
+  {
+    id: uuid('id').primaryKey(),
+    kind: text('kind').notNull(),
+    model: text('model').notNull(),
+    status: text('status', { enum: AI_SPEND_STATUSES }).notNull(),
+    reservedMicroUsd: bigint('reserved_micro_usd', { mode: 'number' }).notNull(),
+    /** Actual cost when known (settled with usage); the reservation is kept when it isn't. */
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'number' }),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    /** Why the reservation was kept or released (e.g. 'timeout'), never error text. */
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('ai_spend_ledger_created_idx').on(table.createdAt),
+    check('ai_spend_ledger_status_valid', oneOf('status', AI_SPEND_STATUSES)),
+    check('ai_spend_ledger_amounts_nonnegative', sql`${table.reservedMicroUsd} >= 0 and coalesce(${table.costMicroUsd}, 0) >= 0`),
   ],
 )

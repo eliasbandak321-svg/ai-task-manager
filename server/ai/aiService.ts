@@ -25,6 +25,7 @@ import type { Workspace } from '../workspace/workspace'
 import { MAX_TOKENS } from './anthropicProvider'
 import { MockAiProvider } from './mockProvider'
 import { costMicroUsd, estimateInputTokens, formatUsd } from './pricing'
+import { SpendLedger } from './spendLedger'
 import { AiError, type AiProvider, type AiRequestKind, type ChatMessage, type ProviderResult, type Usage } from './provider'
 
 const DEMO = new MockAiProvider()
@@ -43,6 +44,8 @@ export interface AiSettings {
   budgetMicroUsd?: number
   /** Used when the real provider is over budget or unavailable. Default: the demo provider. */
   fallback?: AiProvider
+  /** The spending ledger; default: the application-wide one in this database. */
+  ledger?: SpendLedger
 }
 
 /** Why an answer came from Demo AI although a real provider is configured. */
@@ -114,10 +117,9 @@ export class AiService {
     return this.settings.budgetMicroUsd ?? 1_000_000
   }
 
-  /** Real-provider spending so far, across all users (the app's own count). */
-  private async spentMicroUsd(): Promise<number> {
-    const [row] = await this.db.select({ total: sql<string>`coalesce(sum(${aiUsage.costMicroUsd}), 0)` }).from(aiUsage)
-    return Number(row?.total ?? 0)
+  /** The application-wide spending ledger (independent of user accounts). */
+  private get ledger(): SpendLedger {
+    return this.settings.ledger ?? new SpendLedger(this.db, { now: this.workspace.now })
   }
 
   async status() {
@@ -125,7 +127,7 @@ export class AiService {
     const day = zonedParts(this.workspace.now(), 'UTC').date
     const [row] = await this.db.select().from(aiUsage).where(and(eq(aiUsage.userId, this.userId), eq(aiUsage.day, day)))
     const real = this.settings.provider.name !== 'mock'
-    const spent = real ? await this.spentMicroUsd() : 0
+    const spent = real ? await this.ledger.committed() : 0
     return {
       provider: this.settings.provider.name,
       model: this.settings.provider.model,
@@ -163,19 +165,39 @@ export class AiService {
       return { output, source: provider.name, fallbackReason: null }
     }
 
-    const worstCase = costMicroUsd(provider.model, estimateInputTokens(promptText), MAX_TOKENS[kind])
-    if ((await this.spentMicroUsd()) + worstCase > this.budget) {
+    // Reserve the worst case first (atomic, app-wide); no reservation, no real request.
+    const model = provider.model
+    const worstCase = costMicroUsd(model, estimateInputTokens(promptText), MAX_TOKENS[kind])
+    const entry = await this.ledger.reserve(kind, model, worstCase, this.budget)
+    if (entry === null) {
       console.warn(`AI budget reached (${formatUsd(this.budget)}): using Demo AI`)
       return viaFallback('budget')
     }
+
+    let usage: Usage | null = null
     try {
-      const { output, usage } = await call(provider).then(validated(schema))
-      const cost = costMicroUsd(provider.model, usage.inputTokens, usage.outputTokens)
-      await this.recordUsage(day, usage, cost)
+      const result = await call(provider)
+      usage = result.usage
+      const { output } = validated(schema)(result)
+      const cost = costMicroUsd(model, usage.inputTokens, usage.outputTokens)
+      await this.ledger.settle(entry, cost, usage)
+      await this.recordUsage(day, usage)
       // Counts only: never prompts, answers or user data.
-      console.info(`AI usage: ${kind} ${provider.model} input=${usage.inputTokens} output=${usage.outputTokens} cost=${formatUsd(cost)}`)
+      console.info(`AI usage: ${kind} ${model} input=${usage.inputTokens} output=${usage.outputTokens} cost=${formatUsd(cost)}`)
       return { output, source: provider.name, fallbackReason: null }
     } catch (error) {
+      const billed = usage ?? (error instanceof AiError ? error.usage : null)
+      if (billed) {
+        // The model answered (refused, cut off or invalid): that was billed.
+        await this.ledger.settle(entry, costMicroUsd(model, billed.inputTokens, billed.outputTokens), billed)
+        await this.recordUsage(day, billed)
+      } else if (error instanceof AiError && (error.code === 'unavailable' || error.code === 'rate_limited')) {
+        // An error response from the API: not billed.
+        await this.ledger.release(entry, error.code)
+      } else {
+        // A timeout or an unexpected failure: the request may have run, keep the worst case.
+        await this.ledger.keep(entry, error instanceof AiError ? error.code : 'unexpected')
+      }
       if (error instanceof AiError && (error.code === 'unavailable' || error.code === 'timeout' || error.code === 'rate_limited')) {
         console.warn(`AI provider error: ${error.code}; using Demo AI`)
         return viaFallback('unavailable')
@@ -206,14 +228,14 @@ export class AiService {
     return day
   }
 
-  private async recordUsage(day: string, usage: Usage, cost: number): Promise<void> {
+  /** Per-user token statistics (spending itself is tracked in the ledger). */
+  private async recordUsage(day: string, usage: Usage): Promise<void> {
     if (usage.inputTokens === 0 && usage.outputTokens === 0) return
     await this.db
       .update(aiUsage)
       .set({
         inputTokens: sql`${aiUsage.inputTokens} + ${usage.inputTokens}`,
         outputTokens: sql`${aiUsage.outputTokens} + ${usage.outputTokens}`,
-        costMicroUsd: sql`${aiUsage.costMicroUsd} + ${cost}`,
       })
       .where(and(eq(aiUsage.userId, this.userId), eq(aiUsage.day, day)))
   }

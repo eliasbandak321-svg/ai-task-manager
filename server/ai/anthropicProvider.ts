@@ -84,14 +84,13 @@ export class AnthropicProvider implements AiProvider {
     } catch (error) {
       throw toAiError(error)
     }
-    if (response.stop_reason === 'refusal') throw new AiError('refused', 'The AI declined this request.')
-    if (response.stop_reason === 'max_tokens') throw new AiError('invalid_output', 'The AI response was too long and was cut off.')
+    // The provider answered, so the request was billed even if the answer is unusable.
+    const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
+    if (response.stop_reason === 'refusal') throw new AiError('refused', 'The AI declined this request.', { usage })
+    if (response.stop_reason === 'max_tokens') throw new AiError('invalid_output', 'The AI response was too long and was cut off.', { usage })
     const parsed = schema.safeParse(response.parsed_output)
-    if (!parsed.success) throw new AiError('invalid_output', 'The AI returned a response in an unexpected format.')
-    return {
-      output: parsed.data,
-      usage: { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens },
-    }
+    if (!parsed.success) throw new AiError('invalid_output', 'The AI returned a response in an unexpected format.', { usage })
+    return { output: parsed.data, usage }
   }
 
   assistantTurn(request: AssistantRequest): Promise<ProviderResult<AssistantTurn>> {

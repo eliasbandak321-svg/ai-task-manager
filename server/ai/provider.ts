@@ -81,10 +81,13 @@ export type AiErrorCode = 'unavailable' | 'timeout' | 'rate_limited' | 'invalid_
 /** A provider failure, with a code the API turns into a safe, friendly message. */
 export class AiError extends Error {
   readonly code: AiErrorCode
+  /** Token usage when the provider did answer (e.g. refused or invalid output): it was billed. */
+  readonly usage: Usage | null
 
-  constructor(code: AiErrorCode, message: string, options?: ErrorOptions) {
+  constructor(code: AiErrorCode, message: string, options?: ErrorOptions & { usage?: Usage }) {
     super(message, options)
     this.name = 'AiError'
     this.code = code
+    this.usage = options?.usage ?? null
   }
 }
