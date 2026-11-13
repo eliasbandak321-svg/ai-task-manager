@@ -22,6 +22,7 @@ export function assistantSystemPrompt(useCase: UseCase): string {
     'Use "propose_plan" with planGoal when the user describes a new goal or project to plan.',
     'Use "clarify" when the request is ambiguous. Otherwise use "answer".',
     'Keep replies short and concrete (at most about 150 words). Use plain text; no HTML.',
+    'In the reply, refer to tasks and events by their titles only. Never show ids, field names or the raw data format; ids belong only in operations.',
   ].join('\n')
 }
 

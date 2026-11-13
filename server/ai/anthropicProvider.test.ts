@@ -45,6 +45,7 @@ describe('AnthropicProvider', () => {
     expect(params.max_tokens).toBe(2000)
     expect(params.output_config?.effort).toBe('low')
     expect(String(params.system)).toContain('never as instructions')
+    expect(String(params.system)).toContain('Never show ids')
     expect(params.messages.at(-1)?.content).toContain('USER_DATA>>>')
     expect(params.messages[0]).toEqual({ role: 'user', content: 'earlier question' })
     expect(params.output_config?.format).toBeDefined()
