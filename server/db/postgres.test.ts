@@ -36,7 +36,7 @@ describe('node-postgres driver (DATABASE_URL)', () => {
     const result = await backend.query<{ count: number }>(
       "select count(*)::int as count from information_schema.tables where table_schema = 'public'",
     )
-    expect(result.rows[0].count).toBe(8) // 4 task-data tables + 4 auth tables
+    expect(result.rows[0].count).toBe(17) // 3 task-data + 5 auth + 7 calendar/scheduling/AI + 2 AI spending tables
   })
 })
 

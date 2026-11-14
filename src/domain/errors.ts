@@ -13,6 +13,13 @@ export type DomainErrorCode =
   | 'OWNERSHIP_MISMATCH' // items from different users were combined: a bug or an attack
   | 'SUBTASK_LIMIT_REACHED'
   | 'INVALID_SUBTASK_ORDER'
+  | 'INVALID_OCCURRENCE' // the given start isn't an occurrence of that recurring event
+  | 'PROPOSAL_DECIDED' // already approved or rejected (also stops double submissions)
+  | 'PROPOSAL_EXPIRED'
+  | 'PROPOSAL_STALE' // the data it was based on has changed since
+  | 'SCHEDULE_CONFLICT'
+  | 'DEPENDENCY_CYCLE' // dependencies may never form a loop
+  | 'INVALID_SESSION_STATUS' // e.g. marking a session done before it started // a proposed session now overlaps something on the calendar
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode

@@ -6,6 +6,7 @@ import { AuthRequiredError } from '../data/errors'
 import { createMemoryStorage, LocalRepository } from '../data/localRepository'
 import { createQueryClient } from '../data/queryClient'
 import { createFakeAuthClient, TEST_PASSWORD, TEST_USER, VALID_RESET_TOKEN } from '../test/fakeAuthClient'
+import { createFakeWorkspaceClient } from '../test/fakeWorkspaceClient'
 import DashboardApp from './DashboardApp'
 
 /*
@@ -26,7 +27,17 @@ function renderApp(path: string, { signedIn = false, repository = new LocalRepos
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/*" element={<DashboardApp repository={repository} authClient={authClient} queryClient={queryClient} />} />
+        <Route
+          path="/*"
+          element={
+            <DashboardApp
+              repository={repository}
+              authClient={authClient}
+              queryClient={queryClient}
+              workspace={createFakeWorkspaceClient(repository)}
+            />
+          }
+        />
       </Routes>
       <LocationDisplay />
     </MemoryRouter>,
@@ -45,14 +56,14 @@ async function fillLogin(user: ReturnType<typeof userEvent.setup>, email: string
 
 describe('signing in', () => {
   it('sends signed-out visitors to the login page, then back to where they were going', async () => {
-    const { user } = renderApp('/app?q=report')
+    const { user } = renderApp('/app/projects?q=report')
 
     expect(await heading('Sign in')).toBeInTheDocument()
-    expect(location()).toBe('/login?next=%2Fapp%3Fq%3Dreport')
+    expect(location()).toBe('/login?next=%2Fapp%2Fprojects%3Fq%3Dreport')
 
     await fillLogin(user, TEST_USER.email, TEST_PASSWORD)
     expect(await heading('All tasks')).toBeInTheDocument()
-    expect(location()).toBe('/app?q=report')
+    expect(location()).toBe('/app/projects?q=report')
     expect(screen.getByText(TEST_USER.name)).toBeInTheDocument()
     expect(screen.getByText(TEST_USER.email)).toBeInTheDocument()
   })
@@ -73,13 +84,13 @@ describe('signing in', () => {
   it('ignores a "next" link that points to another website (no open redirect)', async () => {
     const { user } = renderApp('/login?next=https%3A%2F%2Fevil.example%2Fphish')
     await fillLogin(user, TEST_USER.email, TEST_PASSWORD)
-    expect(await heading('All tasks')).toBeInTheDocument()
+    expect(await heading('Dashboard')).toBeInTheDocument()
     expect(location()).toBe('/app')
   })
 
   it('takes signed-in users straight past the login and sign-up pages', async () => {
     renderApp('/login', { signedIn: true })
-    expect(await heading('All tasks')).toBeInTheDocument()
+    expect(await heading('Dashboard')).toBeInTheDocument()
     expect(location()).toBe('/app')
   })
 })
@@ -107,8 +118,8 @@ describe('signing up (email confirmation required)', () => {
 
     authClient.confirmEmail('grace@example.test')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(await heading('All tasks')).toBeInTheDocument()
-    expect(screen.getByText('No tasks yet')).toBeInTheDocument()
+    expect(await heading('Dashboard')).toBeInTheDocument()
+    expect(await screen.findByText('Nothing is due today or overdue.')).toBeInTheDocument()
   })
 
   it('shows the same confirmation for an email that already has an account (no enumeration)', async () => {
@@ -197,7 +208,7 @@ describe('signing out and expired sessions', () => {
     const repository = new LocalRepository({ storage: createMemoryStorage() })
     const [inbox] = await repository.listProjects()
     await repository.createTask({ projectId: inbox.id, title: 'Private task' })
-    const { user, queryClient } = renderApp('/app', { signedIn: true, repository })
+    const { user, queryClient } = renderApp('/app/projects', { signedIn: true, repository })
 
     expect(await screen.findByRole('button', { name: 'Private task' })).toBeInTheDocument()
     await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Sign out' }))

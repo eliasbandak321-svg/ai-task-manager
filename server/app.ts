@@ -6,7 +6,11 @@ import type { TaskRepository } from '../src/data/repository'
 import type { ResolveUserId } from './auth'
 import type { Database } from './db/client'
 import { DbRepository } from './db/dbRepository'
+import { AiService, type AiSettings } from './ai/aiService'
+import { MockAiProvider } from './ai/mockProvider'
 import { ApiError, errorBody, toErrorResponse } from './errors'
+import { Workspace } from './workspace/workspace'
+import { registerWorkspaceRoutes, type WorkspaceEnv } from './workspaceRoutes'
 
 /*
   The HTTP API (docs/architecture.md §5–6). Routes are deliberately thin:
@@ -38,9 +42,13 @@ export interface AppOptions {
   /** Injected for tests; default to the real clock and random UUIDs. */
   now?: () => Date
   newId?: () => string
+  /** The AI provider and limits (M9). Default: the free offline demo provider. */
+  ai?: AiSettings
 }
 
-type AppEnv = { Variables: { repository: TaskRepository } }
+type AppEnv = { Variables: { repository: TaskRepository } & WorkspaceEnv['Variables'] }
+
+const DEFAULT_AI: AiSettings = { provider: new MockAiProvider(), dailyRequestLimit: 50 }
 
 /** Request bodies are small JSON objects; anything bigger is refused before parsing. */
 const MAX_BODY_BYTES = 64 * 1024
@@ -125,7 +133,7 @@ function isCrossOrigin(c: Context, trustedOrigins: readonly string[]): boolean {
   return site !== undefined && site !== 'same-origin' && site !== 'none'
 }
 
-export function createApp({ db, resolveUserId, trustedOrigins, explainBlockedOrigins = false, authHandler, now, newId }: AppOptions) {
+export function createApp({ db, resolveUserId, trustedOrigins, explainBlockedOrigins = false, authHandler, now, newId, ai = DEFAULT_AI }: AppOptions) {
   const app = new Hono<AppEnv>().basePath('/api')
 
   app.use(secureHeaders())
@@ -172,6 +180,9 @@ export function createApp({ db, resolveUserId, trustedOrigins, explainBlockedOri
     const userId = await resolveUserId(c)
     if (!userId) throw new ApiError(401, 'UNAUTHENTICATED', 'Please sign in to continue.')
     c.set('repository', new DbRepository(db, userId, { now, newId }))
+    const workspace = new Workspace(db, userId, { now, newId })
+    c.set('workspace', workspace)
+    c.set('ai', new AiService(workspace, ai))
     await next()
   })
 
@@ -211,6 +222,9 @@ export function createApp({ db, resolveUserId, trustedOrigins, explainBlockedOri
     await c.var.repository.deleteSubtask(c.req.param('id'))
     return c.body(null, 204)
   })
+
+  // ---------- Calendar, scheduling, insights and AI (M9) ----------
+  registerWorkspaceRoutes(app)
 
   app.notFound((c) => c.json(errorBody('NOT_FOUND', 'Not found'), 404))
 

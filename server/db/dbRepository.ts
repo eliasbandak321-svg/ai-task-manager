@@ -35,8 +35,8 @@ import {
   type Subtask,
   type Task,
 } from '../../src/domain'
-import type { Database } from './client'
-import { projects, subtasks, tasks } from './schema'
+import type { Database, Transaction } from './client'
+import { calendarEvents, projects, subtasks, tasks } from './schema'
 import { createInboxFor } from './users'
 
 /*
@@ -196,6 +196,7 @@ export class DbRepository implements TaskRepository {
         await tx.delete(subtasks).where(and(inArray(subtasks.id, plan.subtaskIds), eq(subtasks.userId, this.userId)))
       }
       if (plan.taskIds.length > 0) {
+        await this.unlinkEvents(tx, plan.taskIds)
         await tx.delete(tasks).where(and(inArray(tasks.id, plan.taskIds), eq(tasks.userId, this.userId)))
       }
       await tx.delete(projects).where(and(eq(projects.id, plan.projectId), eq(projects.userId, this.userId)))
@@ -274,8 +275,17 @@ export class DbRepository implements TaskRepository {
       if (plan.subtaskIds.length > 0) {
         await tx.delete(subtasks).where(and(inArray(subtasks.id, plan.subtaskIds), eq(subtasks.userId, this.userId)))
       }
+      await this.unlinkEvents(tx, [plan.taskId])
       await tx.delete(tasks).where(and(eq(tasks.id, plan.taskId), eq(tasks.userId, this.userId)))
     })
+  }
+
+  /** Calendar events outlive a deleted task: they stay on the calendar, just unlinked. */
+  private async unlinkEvents(tx: Transaction, taskIds: readonly string[]): Promise<void> {
+    await tx
+      .update(calendarEvents)
+      .set({ taskId: null, updatedAt: this.now() })
+      .where(and(inArray(calendarEvents.taskId, [...taskIds]), eq(calendarEvents.userId, this.userId)))
   }
 
   // ---------- Subtasks ----------

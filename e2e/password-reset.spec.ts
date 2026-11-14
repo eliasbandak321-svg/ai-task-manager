@@ -20,7 +20,7 @@ test.describe('password reset', () => {
     // Another device is signed in to the same account.
     const other = await newClient(browser)
     await signIn(other.page, email)
-    await expect(other.page.getByRole('heading', { level: 1, name: 'All tasks' })).toBeVisible()
+    await expect(other.page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
 
     await signOut(page)
     await requestReset(page, email)
@@ -38,7 +38,7 @@ test.describe('password reset', () => {
     await signIn(page, email, PASSWORD)
     await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
     await signIn(page, email, NEW_PASSWORD)
-    await expect(page.getByRole('heading', { level: 1, name: 'All tasks' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
 
     // The other device was signed out by the reset.
     await other.page.reload()

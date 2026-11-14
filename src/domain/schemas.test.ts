@@ -23,7 +23,15 @@ describe('createTaskInputSchema', () => {
       status: 'todo',
       priority: 'medium',
       dueDate: null,
+      estimatedMinutes: null,
     })
+  })
+
+  it('accepts whole-minute estimates within limits, or null', () => {
+    expect(createTaskInputSchema.parse({ projectId, title: 'A', estimatedMinutes: 45 }).estimatedMinutes).toBe(45)
+    for (const estimatedMinutes of [0, 4, 6001, 12.5, '30']) {
+      expect(createTaskInputSchema.safeParse({ projectId, title: 'A', estimatedMinutes }).success).toBe(false)
+    }
   })
 
   it('rejects a blank title', () => {

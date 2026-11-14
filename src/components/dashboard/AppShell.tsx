@@ -3,11 +3,10 @@ import { Outlet, useLocation } from 'react-router'
 import { AccountMenu } from '../auth/AccountMenu'
 import { Container } from '../Container'
 import { Wordmark } from '../Wordmark'
-import { ProjectNav } from './ProjectNav'
+import { AppNav } from '../workspace/AppNav'
 
 /**
- * Dashboard layout: header, project navigation (a sidebar on large screens, a collapsible
- * list on small ones) and the page content.
+ * App layout: header with the main navigation (M9), and the page content.
  */
 export function AppShell() {
   const { pathname } = useLocation()
@@ -25,7 +24,7 @@ export function AppShell() {
   }, [pathname])
 
   return (
-    <div className="min-h-svh">
+    <div className="app-shell min-h-svh">
       <a
         href="#main"
         className="sr-only rounded-full bg-glow px-4 py-2 text-sm font-semibold text-night focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-60"
@@ -37,12 +36,14 @@ export function AppShell() {
           <Wordmark to="/" />
           <AccountMenu />
         </Container>
+        <Container>
+          <AppNav />
+        </Container>
       </header>
 
-      {/* pb-28 below lg: room to scroll the last controls above a notification (see Toaster). */}
-      <Container className="flex flex-col gap-6 pt-6 pb-28 lg:flex-row lg:items-start lg:gap-10 lg:py-10">
-        <ProjectNav />
-        <main id="main" ref={mainRef} tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
+      {/* pb-28: room to scroll the last controls above a notification (see Toaster). */}
+      <Container className="pt-6 pb-28 lg:pt-8">
+        <main id="main" ref={mainRef} tabIndex={-1} className="min-w-0 focus:outline-none">
           <Outlet />
         </main>
       </Container>

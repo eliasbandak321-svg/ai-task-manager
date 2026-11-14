@@ -43,4 +43,55 @@ test.describe('phone layout', () => {
     expect(small).toBe(0)
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
   })
+
+  test('the M9 pages fit a phone and the main navigation scrolls instead of overflowing', async ({ page }) => {
+    await signUpAndConfirm(page, 'Phone Planner')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    for (const [link, heading] of [
+      ['Dashboard', 'Dashboard'],
+      ['Calendar', 'Calendar'],
+      ['AI Assistant', /AI Assistant/],
+      ['Insights', 'Insights'],
+      ['Settings', 'Settings'],
+    ] as const) {
+      await nav.getByRole('link', { name: link }).click()
+      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+    }
+
+    // The calendar's event dialog fits and keeps 44 px touch targets.
+    await nav.getByRole('link', { name: 'Calendar' }).click()
+    await page.getByRole('button', { name: 'New event' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New event' })
+    await expect(dialog).toBeVisible()
+    const small = await dialog.locator('button, select, input:not([type=checkbox]):not([type=radio]), textarea').evaluateAll((elements) =>
+      elements.filter((element) => element.getBoundingClientRect().height > 0 && element.getBoundingClientRect().height < 44).length,
+    )
+    expect(small).toBe(0)
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+  })
+
+  test('the calendar works on a phone: day view, creating an event, agenda, no overflow', async ({ page }) => {
+    await signUpAndConfirm(page, 'Phone Calendar')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).click()
+    const calendar = page.locator('.calendar-theme')
+    await expect(calendar.locator('.fc-timeGridDay-view')).toBeVisible()
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+
+    await page.getByRole('button', { name: 'New event' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New event' })
+    await dialog.getByRole('textbox', { name: 'Title' }).fill('Phone event')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('region', { name: 'Agenda' }).getByText('Phone event')).toBeVisible()
+    await expect(calendar.locator('.fc-event', { hasText: 'Phone event' })).toBeVisible()
+
+    // The view switcher is reachable at the bottom of the calendar.
+    await calendar.getByRole('button', { name: 'Month', exact: true }).click()
+    await expect(calendar.locator('.fc-dayGridMonth-view')).toBeVisible()
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+    await page.screenshot({ path: 'test-results/calendar/07-phone-month.png', fullPage: true })
+    await calendar.getByRole('button', { name: 'Day', exact: true }).click()
+    await page.screenshot({ path: 'test-results/calendar/08-phone-day.png' })
+  })
 })

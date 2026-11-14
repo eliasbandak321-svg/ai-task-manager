@@ -85,7 +85,13 @@ const storedDataSchema = z.object({
   version: z.literal(1),
   userId: idSchema,
   projects: z.array(projectSchema),
-  tasks: z.array(taskSchema),
+  // Tasks saved before M9 have no estimate: read them as "unknown" instead of rejecting them.
+  tasks: z.array(
+    z.preprocess(
+      (task) => (task && typeof task === 'object' && !('estimatedMinutes' in task) ? { ...task, estimatedMinutes: null } : task),
+      taskSchema,
+    ),
+  ),
   subtasks: z.array(subtaskSchema),
 })
 type StoredData = z.infer<typeof storedDataSchema>

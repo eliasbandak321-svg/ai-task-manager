@@ -17,7 +17,7 @@ test.describe('registration, login and logout', () => {
     await signIn(page, email, 'wrong password')
     await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
     await signIn(page, email)
-    await expect(page.getByRole('heading', { level: 1, name: 'All tasks' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
   })
 
   test('an unconfirmed account can’t sign in and gets a fresh link', async ({ page }) => {
@@ -48,17 +48,17 @@ test.describe('registration, login and logout', () => {
     await signIn(page, email, 'mallory password')
     await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
     await signIn(page, email, PASSWORD)
-    await expect(page.getByRole('heading', { level: 1, name: 'All tasks' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
   })
 
   test('protected pages send visitors to login and back', async ({ page }) => {
     const { email } = await signUpAndConfirm(page)
     await signOut(page)
-    await page.goto('/app?q=report')
-    await expect(page).toHaveURL(/\/login\?next=%2Fapp%3Fq%3Dreport$/)
+    await page.goto('/app/projects?q=report')
+    await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fprojects%3Fq%3Dreport$/)
     await page.getByRole('textbox', { name: 'Email' }).fill(email)
     await page.getByLabel('Password').fill(PASSWORD)
     await page.getByRole('button', { name: 'Sign in' }).click()
-    await expect(page).toHaveURL(/\/app\?q=report$/)
+    await expect(page).toHaveURL(/\/app\/projects\?q=report$/)
   })
 })

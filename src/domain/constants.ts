@@ -16,6 +16,9 @@ export const LIMITS = {
   subtaskTitle: 200,
   subtasksPerTask: 50,
   searchQuery: 200,
+  /** Effort estimate for a task, in minutes (100 hours at most). */
+  estimateMinutesMin: 5,
+  estimateMinutesMax: 6000,
 } as const
 
 /** Name of the default project every user gets. Reserved: users can't create another one. */

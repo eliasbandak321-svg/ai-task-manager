@@ -98,6 +98,7 @@ export function describeRepositoryContract(adapterName: string, createRepository
           status: 'todo',
           priority: 'medium',
           dueDate: null,
+          estimatedMinutes: null,
           completedAt: null,
         })
         expect(await repo.listTasks()).toEqual([task])
@@ -124,6 +125,16 @@ export function describeRepositoryContract(adapterName: string, createRepository
         const reopened = await repo.updateTask(task.id, { status: 'todo' })
         expect(reopened.completedAt).toBeNull()
         expect(await repo.listTasks()).toEqual([reopened])
+      })
+
+      it('stores, changes and clears an effort estimate', async () => {
+        const task = await repo.createTask({ projectId: inbox.id, title: 'Essay', estimatedMinutes: 90 })
+        expect(task.estimatedMinutes).toBe(90)
+        expect((await repo.updateTask(task.id, { estimatedMinutes: 120 })).estimatedMinutes).toBe(120)
+        expect((await repo.updateTask(task.id, { estimatedMinutes: null })).estimatedMinutes).toBeNull()
+        await rejectsAsInvalid(repo.updateTask(task.id, { estimatedMinutes: 2 }))
+        await rejectsAsInvalid(repo.updateTask(task.id, { estimatedMinutes: 90.5 }))
+        await rejectsAsInvalid(repo.createTask({ projectId: inbox.id, title: 'Huge', estimatedMinutes: 100_000 }))
       })
 
       it('moves a task to another project', async () => {

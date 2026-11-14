@@ -24,6 +24,7 @@ describe('createTask', () => {
       status: 'todo',
       priority: 'high',
       dueDate: null,
+      estimatedMinutes: null,
       completedAt: null,
       createdAt: NOW,
       updatedAt: NOW,

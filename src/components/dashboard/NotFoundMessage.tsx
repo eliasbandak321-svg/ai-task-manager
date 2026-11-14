@@ -13,7 +13,7 @@ export function NotFoundMessage({ title, children }: NotFoundMessageProps) {
       <h1 className="font-display text-h2 font-semibold text-ink">{title}</h1>
       <p className="mt-2 text-ink-muted">{children}</p>
       <Link
-        to="/app"
+        to="/app/projects"
         className="mt-6 inline-flex min-h-11 items-center rounded-full bg-glow px-5 text-sm font-semibold text-night hover:bg-glow-strong"
       >
         Go to all tasks
