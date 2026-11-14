@@ -30,10 +30,12 @@ export function AssistantPage() {
   const chat = useChat()
   const deleteConversation = useDeleteConversation()
   const showToast = useToast()
-  const endRef = useRef<HTMLDivElement>(null)
+  const threadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    endRef.current?.scrollIntoView?.({ block: 'end' })
+    // Scroll the conversation panel only, never the page (which would push the title away).
+    const thread = threadRef.current
+    if (thread) thread.scrollTop = thread.scrollHeight
   }, [messages.data?.length, chat.isPending])
 
   const proposalFor = (id: string | null) => (id ? (proposals[id] ?? pending.data?.find((proposal) => proposal.id === id)) : undefined)
@@ -118,7 +120,7 @@ export function AssistantPage() {
         </nav>
 
         <section aria-label="Conversation" className="flex min-h-96 flex-col rounded-card border border-line bg-surface">
-          <div aria-live="polite" className="flex-1 space-y-4 p-4 sm:p-5">
+          <div ref={threadRef} aria-live="polite" className="max-h-[60svh] flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
             {!conversationId && (
               <div className="space-y-3">
                 <p className="text-sm text-ink-muted">Try one of these:</p>
@@ -162,7 +164,6 @@ export function AssistantPage() {
                 </Link>
               </div>
             )}
-            <div ref={endRef} />
           </div>
 
           <form onSubmit={onSubmit} className="border-t border-line p-3 sm:p-4">

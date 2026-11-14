@@ -268,7 +268,15 @@ Free time = working days × working hours in the preference time zone, from the 
 - **Fallback**: when the cap is reached or the provider is unreachable (timeout, rate limit, outage), the request is answered by Demo AI and labelled so ("Demo AI" badge plus a sentence saying why). Invalid model output is an error, not a silent fallback.
 - **Secrets and logs**: `ANTHROPIC_API_KEY` is server-only (never `VITE_`); logs contain only error codes, never prompts, content or keys. Tests and E2E can never select the paid provider (`loadEnv` refuses it under `NODE_ENV=test`; Playwright pins `AI_PROVIDER=mock`).
 
-### AI provider and cost *(decision pending)*
+### Known limitations and future improvements *(recorded at the end of M9)*
+Non-blocking; none of them affects correctness or security.
+- **AI priority distribution:** generated plans tend to mark most tasks High. Improve the plan prompt (e.g. ask for a balanced spread and reserve High for the critical path) and consider a soft check that flags plans where almost everything is High.
+- **Visual design (M10):** spacing, typography, visual hierarchy and responsive layouts of the whole app are redesigned in M10, planned together with the developer first.
+- **Calendar:** no all-day events; recurrence covers daily, weekly (chosen weekdays) and monthly on the same date only (no "last Friday of the month", no yearly); editing "this and following" splits the series into two series; drag-and-drop on touch screens uses FullCalendar's long-press (the agenda's Edit button is the reliable alternative); each request expands at most 62 days, and a series yields at most 1,000 occurrences per request.
+- **Scheduling:** greedy, not globally optimal; past sessions only count when marked done; the per-minute AI burst limit is per server instance (the daily limit and the spending cap are in the database).
+- **AI:** the assistant sees at most 40 open tasks and 40 upcoming events; conversations keep the last 10 messages as history.
+
+### AI provider and cost *(decided 2026-11-12)*
 Prices from the official pricing page (checked 2026-11-12), per million tokens input / output: **Claude Haiku 5.5 $0.10 / $0.50** (prompts ≤ 100K tokens), Sonnet 5.5 $2 / $10, Opus 5.5 $4 / $20. Our prompts are ~1–6K tokens.
 
 | Request | Tokens (in / out, estimated) | Haiku 5.5 | Sonnet 5.5 |

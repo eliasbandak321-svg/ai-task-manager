@@ -240,7 +240,7 @@ The dashboard prioritises function, usability and accessibility. It reuses the l
 ### Layout [Decided at the start of M5]
 
 - **Header:** wordmark (links to `/`), the signed-in user's name and email, and a **Sign out** button.
-- **Main navigation (M9):** one row of links under the header — Dashboard, Calendar, Projects, AI Assistant, Insights, Settings — with icons and the current page underlined (`aria-current`). On phones the row scrolls sideways instead of wrapping or overflowing the page.
+- **Main navigation (M9):** one row of links under the header — Dashboard, Calendar, Projects, AI Assistant, Insights, Settings — with icons and the current page underlined (`aria-current`). On phones the row scrolls sideways instead of wrapping or overflowing the page. Because the header is sticky (about 7 rem), signed-in pages set `scroll-padding-top: 8rem`, so the skip link, focus changes and find-in-page never leave content underneath it; the assistant's conversation scrolls inside its own panel, never the page.
 - **Project navigation (Projects section only since M9):** a sidebar (16 rem) on large screens (≥ 1024 px). On smaller screens it collapses into a full-width "Projects: <current>" button above the content that expands the same list, so the tasks stay at the top of the page. The list shows "All tasks", then the Inbox and the other projects with their completion percentage, plus a "New project" button.
 - **Page:** the title (`h1`), the actions (New task; Rename and Delete for regular projects only), the statistics panel, the quick-add field, the search and filter toolbar, a live result count, and the task list.
 - **Single column** inside the content area at every width; the task list never scrolls horizontally.

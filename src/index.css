@@ -302,3 +302,12 @@
 .calendar-theme .fc .fc-event {
   cursor: pointer;
 }
+
+/*
+  Signed-in pages have a sticky header with the main navigation (about 7 rem tall). Any
+  scroll the browser makes — the skip link, focus moving into view, find-in-page — stops this
+  far below the top, so content never lands underneath the header.
+*/
+html:has(.app-shell) {
+  scroll-padding-top: 8rem;
+}

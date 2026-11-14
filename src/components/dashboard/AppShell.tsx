@@ -24,7 +24,7 @@ export function AppShell() {
   }, [pathname])
 
   return (
-    <div className="min-h-svh">
+    <div className="app-shell min-h-svh">
       <a
         href="#main"
         className="sr-only rounded-full bg-glow px-4 py-2 text-sm font-semibold text-night focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-60"

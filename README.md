@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, plan their time on a calendar with a scheduling engine, and use an AI workspace to turn goals into plans. *Plan smarter. Organize better. Get things done.* Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M8 are complete: secure accounts (email confirmation, password reset), a dashboard on a Hono API with a Neon PostgreSQL database, and end-to-end tests. M9 (AI workspace and smart calendar) is built and in review; its AI runs on a free, offline demo provider until a real AI provider is approved. The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
+> **Status:** 🚧 In development. M1–M8 are complete: secure accounts (email confirmation, password reset), a dashboard on a Hono API with a Neon PostgreSQL database, and end-to-end tests. M9 (AI workspace and smart calendar) is complete: real AI via Claude Haiku 5.5 with an app-wide spending cap, and a free Demo AI fallback. The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
 
 ## Features
 
@@ -62,8 +62,8 @@ See [docs/architecture.md](docs/architecture.md) for the data model, security mo
 - [x] M6: Backend & database (Hono, PostgreSQL, Drizzle)
 - [x] M7: Authentication & security (Better Auth, user isolation)
 - [x] M8: Hardening (password reset, end-to-end tests, security review)
-- [ ] M9: Intelligent AI workspace & smart calendar *(built, in review)*
-- [ ] M10: Complete visual redesign (landing page and dashboard)
+- [x] M9: Intelligent AI workspace & smart calendar
+- [ ] M10: Complete visual redesign (landing page and dashboard) — to be planned together first; see the M9 future improvements in [docs/architecture.md](docs/architecture.md) §7
 - [ ] M11: Final testing & public deployment (Vercel, production database, email provider)
 
 Development and testing happen on localhost until M11. GitHub pull requests and CI are used throughout, and the code stays deployment-compatible (see [docs/architecture.md](docs/architecture.md) §9).
