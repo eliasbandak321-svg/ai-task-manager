@@ -10,7 +10,7 @@ const colour: Record<TaskPriority, string> = {
 /** Priority as an icon and a text label: colour is never the only signal (docs/design.md §2). */
 export function PriorityBadge({ priority }: { priority: TaskPriority }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 ${colour[priority]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full bg-current/10 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${colour[priority]}`}>
       <Flag aria-hidden="true" className="size-3.5" />
       {PRIORITY_LABELS[priority]} priority
     </span>

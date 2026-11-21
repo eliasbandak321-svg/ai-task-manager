@@ -17,7 +17,7 @@ test.describe('registration, login and logout', () => {
     await signIn(page, email, 'wrong password')
     await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
     await signIn(page, email)
-    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /^Today,/ })).toBeVisible()
   })
 
   test('an unconfirmed account can’t sign in and gets a fresh link', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('registration, login and logout', () => {
     await signIn(page, email, 'mallory password')
     await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
     await signIn(page, email, PASSWORD)
-    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /^Today,/ })).toBeVisible()
   })
 
   test('protected pages send visitors to login and back', async ({ page }) => {

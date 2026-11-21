@@ -50,12 +50,13 @@ const location = () => screen.getByTestId('location').textContent
 describe('navigation and dashboard', () => {
   it('shows every section in the main navigation and the dashboard overview', async () => {
     const { user } = await renderWorkspace('/app')
-    expect(await heading('Dashboard')).toBeInTheDocument()
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const name of ['Dashboard', 'Calendar', 'Projects', 'AI Assistant', 'Insights', 'Settings']) {
+    expect(await heading(/^Today,/)).toBeInTheDocument()
+    // The sidebar and the phone bottom bar are both named "Main"; CSS shows one at a time (jsdom has no CSS).
+    const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]
+    for (const name of ['Today', 'Calendar', 'Projects', 'AI Assistant', 'Insights', 'Settings']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
-    expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page')
     expect(await screen.findByRole('link', { name: /Set availability/ })).toBeInTheDocument()
 
     await user.click(within(nav).getByRole('link', { name: 'Projects' }))

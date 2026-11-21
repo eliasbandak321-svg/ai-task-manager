@@ -107,7 +107,7 @@ export function TasksPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-h2 font-semibold break-words text-ink">{heading}</h1>
+          <h1 className="font-display text-page font-semibold break-words text-ink">{heading}</h1>
           <p className="mt-1 text-sm text-ink-muted">
             {!project
               ? 'Every task, across all your projects.'

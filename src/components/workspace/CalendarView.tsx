@@ -49,7 +49,7 @@ export default function CalendarView({ timeZone, occurrences, onRangeChange, onS
     end: occurrence.end,
     backgroundColor: CATEGORY_COLOR_VARS[occurrence.category],
     borderColor: CATEGORY_COLOR_VARS[occurrence.category],
-    textColor: 'var(--color-night)',
+    textColor: 'var(--color-on-tint)',
     extendedProps: { category: EVENT_CATEGORY_LABELS[occurrence.category] },
   }))
 

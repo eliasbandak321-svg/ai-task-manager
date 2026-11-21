@@ -99,7 +99,7 @@ export async function signUpAndConfirm(page: Page, name = 'E2E User', email = un
   await page.goto(mail.link ?? '')
   await expect(page.getByRole('heading', { level: 1, name: 'Email confirmed' })).toBeVisible()
   await page.getByRole('link', { name: 'Go to your tasks' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /^Today,/ })).toBeVisible()
   await openProjects(page)
   return { email }
 }
@@ -112,7 +112,9 @@ export async function signIn(page: Page, email: string, password = PASSWORD) {
 }
 
 export async function signOut(page: Page) {
-  await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click()
+  // M10: sign out lives in the account menu in the top bar.
+  await page.getByRole('banner').getByRole('button', { name: /^Account:/ }).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible()
 }
 

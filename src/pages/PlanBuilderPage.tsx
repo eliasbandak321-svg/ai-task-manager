@@ -102,7 +102,7 @@ export function PlanBuilderPage() {
             AI Assistant
           </Link>
         </p>
-        <h1 className="mt-1 font-display text-h2 font-semibold text-ink">Plan a goal</h1>
+        <h1 className="mt-1 font-display text-page font-semibold text-ink">Plan a goal</h1>
         <p className="mt-1 text-ink-muted">Describe what you want to achieve. You can edit everything before anything is saved.</p>
       </div>
 

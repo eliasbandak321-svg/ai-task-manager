@@ -100,7 +100,7 @@ test.describe('AI workspace and calendar', () => {
     // Everything is still there after signing out and in again.
     await signOut(page)
     await signIn(page, email)
-    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /^Today,/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Upcoming sessions' })).toBeVisible()
     await nav.getByRole('link', { name: 'Calendar' }).click()
     await expect(page.getByRole('region', { name: 'Agenda' }).getByText('Long gym session')).toBeVisible()

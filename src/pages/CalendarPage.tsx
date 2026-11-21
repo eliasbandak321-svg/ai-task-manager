@@ -133,7 +133,7 @@ export function CalendarPage() {
       <title>Calendar · AI Task Manager</title>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-h2 font-semibold text-ink">Calendar</h1>
+          <h1 className="font-display text-page font-semibold text-ink">Calendar</h1>
           <p className="mt-1 text-ink-muted">Drag to move, drag the bottom edge to resize, or select a time to add an event.</p>
         </div>
         <Button variant="primary" onClick={newEvent}>

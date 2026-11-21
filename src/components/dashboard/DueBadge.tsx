@@ -14,7 +14,7 @@ const colour: Record<DeadlineStatus, string> = {
 export function DueBadge({ label }: { label: DueLabel }) {
   const Icon = label.status === 'overdue' ? CircleAlert : CalendarClock
   return (
-    <span className={`inline-flex items-center gap-1.5 ${colour[label.status]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full bg-current/10 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${colour[label.status]}`}>
       <Icon aria-hidden="true" className="size-3.5" />
       {label.text}
     </span>

@@ -30,7 +30,7 @@ export function InsightsPage() {
     <div className="space-y-6">
       <title>Insights · AI Task Manager</title>
       <div>
-        <h1 className="font-display text-h2 font-semibold text-ink">Insights</h1>
+        <h1 className="font-display text-page font-semibold text-ink">Insights</h1>
         <p className="mt-1 text-ink-muted">Calculated from your tasks and calendar. Ask the assistant if you'd like them explained.</p>
       </div>
 

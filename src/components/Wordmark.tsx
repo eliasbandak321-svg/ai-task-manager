@@ -1,21 +1,20 @@
-import { ListChecks } from 'lucide-react'
 import { Link } from 'react-router'
 import { site } from '../config/site'
 
 interface WordmarkProps {
   /** A route to link to (e.g. "/"). Without it, the wordmark links to the top of the current page. */
   to?: string
+  /** Hide the product name visually (the link keeps its accessible name). */
+  compact?: boolean
 }
 
-/** Logo tile plus product name. */
-export function Wordmark({ to }: WordmarkProps) {
-  const className = 'inline-flex min-h-11 items-center gap-2.5 rounded-control font-display font-semibold text-ink'
+/** Brand mark (a cyan–mint–sky–lavender ring, M10) plus the product name. */
+export function Wordmark({ to, compact = false }: WordmarkProps) {
+  const className = 'inline-flex min-h-11 items-center gap-2.5 rounded-control font-display font-semibold tracking-tight text-ink'
   const content = (
     <>
-      <span className="grid size-8 place-items-center rounded-control border border-glow/30 bg-glow/10 text-glow">
-        <ListChecks aria-hidden="true" className="size-4.5" strokeWidth={2} />
-      </span>
-      <span className="whitespace-nowrap">{site.name}</span>
+      <span aria-hidden="true" className="brand-mark" />
+      <span className={compact ? 'sr-only' : 'whitespace-nowrap'}>{site.name}</span>
     </>
   )
 

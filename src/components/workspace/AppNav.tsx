@@ -1,35 +1,61 @@
-import { BarChart3, CalendarDays, FolderKanban, LayoutDashboard, Settings, Sparkles, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
+import { NAV_ITEMS } from './navItems'
 
-const ITEMS: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
-  { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/app/projects', label: 'Projects', icon: FolderKanban },
-  { to: '/app/assistant', label: 'AI Assistant', icon: Sparkles },
-  { to: '/app/insights', label: 'Insights', icon: BarChart3 },
-  { to: '/app/settings', label: 'Settings', icon: Settings },
-]
+
+interface AppNavProps {
+  /** "sidebar" on large screens, "bar" for the bottom bar on phones and tablets. */
+  variant: 'sidebar' | 'bar'
+  className?: string
+}
 
 /**
- * The app's main navigation. One row of links: on small screens it scrolls sideways, so every
- * section stays one tap away. The current page is marked with aria-current (NavLink).
+ * The app's main navigation (M10). The same links render as the desktop sidebar and as the
+ * bottom bar on small screens; only one of them is visible at a time, and both are named "Main".
+ * The current page is marked with aria-current (NavLink).
  */
-export function AppNav() {
+export function AppNav({ variant, className = '' }: AppNavProps) {
+  if (variant === 'bar') {
+    return (
+      <nav aria-label="Main" className={className}>
+        <ul className="grid grid-cols-6 gap-1">
+          {NAV_ITEMS.map(({ to, short, label, icon: Icon, end }) => (
+            <li key={to}>
+              <NavLink
+                to={to}
+                end={end}
+                aria-label={label}
+                className={({ isActive }) =>
+                  `flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[0.6875rem] font-medium transition-colors duration-(--duration-fast) ${
+                    isActive ? 'bg-raised text-ink' : 'text-ink-subtle hover:text-ink'
+                  }`
+                }
+              >
+                <Icon aria-hidden="true" className="size-5" />
+                <span className="max-w-full truncate">{short}</span>
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    )
+  }
   return (
-    <nav aria-label="Main" className="border-b border-line">
-      <ul className="-mb-px flex gap-1 overflow-x-auto px-1">
-        {ITEMS.map(({ to, label, icon: Icon, end }) => (
-          <li key={to} className="shrink-0">
+    <nav aria-label="Main" className={className}>
+      <ul className="flex flex-col gap-0.5">
+        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+          <li key={to}>
             <NavLink
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-medium transition-colors duration-(--duration-fast) ${
-                  isActive ? 'border-glow text-ink' : 'border-transparent text-ink-muted hover:text-ink'
+                `relative flex min-h-10 items-center gap-3 rounded-xl px-3 text-[0.9375rem] transition-colors duration-(--duration-fast) ${
+                  isActive
+                    ? 'nav-active bg-surface font-medium text-ink shadow-soft ring-1 ring-line'
+                    : 'text-ink-muted hover:bg-raised hover:text-ink'
                 }`
               }
             >
-              <Icon aria-hidden="true" className="size-4" />
+              <Icon aria-hidden="true" className="size-4.5 shrink-0" />
               {label}
             </NavLink>
           </li>

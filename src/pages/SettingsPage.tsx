@@ -81,7 +81,7 @@ function SettingsForm({ initial, saved }: { initial: Preferences; saved: boolean
     <div className="max-w-2xl space-y-8">
       <title>Settings · AI Task Manager</title>
       <div>
-        <h1 className="font-display text-h2 font-semibold text-ink">Settings</h1>
+        <h1 className="font-display text-page font-semibold text-ink">Settings</h1>
         <p className="mt-1 text-ink-muted">
           The scheduler only plans work inside these hours and around your calendar.{!saved && ' These are defaults until you save.'}
         </p>
