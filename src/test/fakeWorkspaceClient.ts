@@ -12,6 +12,7 @@ import type {
   WorkspaceClient,
 } from '../data/workspaceClient'
 import {
+  CALENDAR_RANGE_MAX_DAYS,
   computeInsights,
   computeTaskEffort,
   planDependencies,
@@ -53,6 +54,7 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
   const proposals: Proposal[] = []
   const conversations: (Conversation & { messages: ChatMessage[] })[] = []
   const calls: { method: string; args: unknown[] }[] = []
+  const calendarRequests: { from: string; to: string }[] = []
   let dependencies: TaskDependency[] = []
 
   const record = (method: string, ...args: unknown[]) => calls.push({ method, args })
@@ -74,9 +76,12 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
     return proposal
   }
 
-  const client: WorkspaceClient & { calls: typeof calls; events: typeof events } = {
+  const client: WorkspaceClient & { calls: typeof calls; events: typeof events; calendarRequests: typeof calendarRequests; failCalendar: boolean } = {
     calls,
     events,
+    calendarRequests,
+    /** Tests set this to make calendar requests fail (like a network or server error). */
+    failCalendar: false,
 
     async getPreferences(): Promise<PreferencesResponse> {
       return { preferences, saved, updatedAt: saved ? now().toISOString() : null }
@@ -90,6 +95,10 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
     },
 
     async listCalendar(from, to): Promise<CalendarRange> {
+      calendarRequests.push({ from, to })
+      if (client.failCalendar) throw new Error('The calendar service is unavailable.')
+      // Same limit as the real API (server/workspace/calendarStore.ts), so tests catch requests it would refuse.
+      if (new Date(to).getTime() - new Date(from).getTime() > CALENDAR_RANGE_MAX_DAYS * 86_400_000) throw new Error(`The range may be at most ${CALENDAR_RANGE_MAX_DAYS} days`)
       return { events: [...events], occurrences: expandEvents(events, new Date(from), new Date(to)) }
     },
 

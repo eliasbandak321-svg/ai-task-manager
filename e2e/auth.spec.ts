@@ -3,7 +3,10 @@ import { countEmails, expect, fillSignUp, PASSWORD, signIn, signOut, signUpAndCo
 test.describe('registration, login and logout', () => {
   test('registers, confirms the email, signs out and signs back in', async ({ page, context }) => {
     const { email } = await signUpAndConfirm(page, 'Grace Hopper')
-    await expect(page.getByRole('banner')).toContainText(email)
+    // M10: who is signed in is shown in the account menu in the top bar.
+    await page.getByRole('banner').getByRole('button', { name: 'Account: Grace Hopper' }).click()
+    await expect(page.getByRole('menu', { name: 'Account' })).toContainText(email)
+    await page.keyboard.press('Escape')
     await expect(page.getByText('No tasks yet')).toBeVisible()
 
     const cookie = (await context.cookies()).find((c) => c.name === 'better-auth.session_token')
@@ -17,7 +20,7 @@ test.describe('registration, login and logout', () => {
     await signIn(page, email, 'wrong password')
     await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
     await signIn(page, email)
-    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /^Today,/ })).toBeVisible()
   })
 
   test('an unconfirmed account can’t sign in and gets a fresh link', async ({ page }) => {
@@ -48,7 +51,7 @@ test.describe('registration, login and logout', () => {
     await signIn(page, email, 'mallory password')
     await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
     await signIn(page, email, PASSWORD)
-    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /^Today,/ })).toBeVisible()
   })
 
   test('protected pages send visitors to login and back', async ({ page }) => {

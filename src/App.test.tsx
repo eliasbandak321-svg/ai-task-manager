@@ -14,7 +14,7 @@ function renderAt(path: string) {
 describe('App routes', () => {
   it('shows the landing page at /', () => {
     renderAt('/')
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Turn scattered tasks into steady progress.')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Less chaos\.\s*More focus\.$/)
   })
 
   it('lazy-loads the app at /app, which first checks the session', async () => {

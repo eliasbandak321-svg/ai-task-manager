@@ -72,12 +72,12 @@ export function AssistantPage() {
       <title>AI Assistant · AI Task Manager</title>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="flex flex-wrap items-center gap-3 font-display text-h2 font-semibold text-ink">
+          <h1 className="flex flex-wrap items-center gap-3 font-display text-page font-semibold text-ink">
             AI Assistant {status.data && <SourceBadge source={status.data.provider} />}
           </h1>
           <p className="mt-1 text-ink-muted">Ask about your tasks and calendar. Suggested changes wait for your approval.</p>
         </div>
-        <Link to="/app/assistant/plan" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-glow px-5 text-sm font-semibold text-night hover:bg-glow-strong">
+        <Link to="/app/assistant/plan" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-btn px-5 text-sm font-medium text-btn-ink hover:bg-btn-hover">
           <Wand2 aria-hidden="true" className="size-4" /> Plan a new goal
         </Link>
       </div>
@@ -138,7 +138,7 @@ export function AssistantPage() {
               return (
                 <article key={message.id} className={message.role === 'user' ? 'ml-auto max-w-[85%]' : 'max-w-[95%]'}>
                   <h3 className="sr-only">{message.role === 'user' ? 'You' : 'Assistant'}</h3>
-                  <div className={`rounded-card p-3 text-sm ${message.role === 'user' ? 'bg-glow-deep text-ink' : 'border border-line bg-raised text-ink'}`}>
+                  <div className={`rounded-card p-3 text-sm ${message.role === 'user' ? 'bg-btn text-btn-ink' : 'border border-line bg-raised text-ink'}`}>
                     {message.role === 'assistant' && (
                       <div className="mb-1">
                         <SourceBadge source={message.source} />

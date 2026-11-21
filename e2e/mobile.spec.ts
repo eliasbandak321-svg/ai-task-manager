@@ -48,7 +48,7 @@ test.describe('phone layout', () => {
     await signUpAndConfirm(page, 'Phone Planner')
     const nav = page.getByRole('navigation', { name: 'Main' })
     for (const [link, heading] of [
-      ['Dashboard', 'Dashboard'],
+      ['Today', /^Today,/],
       ['Calendar', 'Calendar'],
       ['AI Assistant', /AI Assistant/],
       ['Insights', 'Insights'],

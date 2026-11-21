@@ -18,7 +18,7 @@ export function ProgressBar({ value, label, valueText, className = '' }: Progres
       max={100}
       aria-label={label}
       aria-valuetext={valueText}
-      className={`block h-2 w-full appearance-none overflow-hidden rounded-full bg-line [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-status-done [&::-webkit-progress-bar]:bg-line [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-status-done ${className}`}
+      className={`progress-identity block h-1.5 w-full appearance-none overflow-hidden rounded-full bg-raised ${className}`}
     />
   )
 }
