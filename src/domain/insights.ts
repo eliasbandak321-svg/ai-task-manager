@@ -25,13 +25,23 @@ export interface DayWorkload {
   dueTasks: number
 }
 
-export type SuggestionKind = 'overdue' | 'overloaded_day' | 'unscheduled_urgent' | 'missing_estimate' | 'nothing_planned'
+export type SuggestionKind =
+  | 'overdue'
+  | 'overloaded_day'
+  | 'unscheduled_urgent'
+  | 'missing_estimate'
+  | 'nothing_planned'
+  // Added by computeInsightsReport (M10):
+  | 'unmarked_sessions'
+  | 'stale_project'
 
 export interface Suggestion {
   kind: SuggestionKind
   message: string
   taskIds: string[]
   date?: IsoDate
+  /** Set for project-level suggestions (stale_project). */
+  projectId?: string
 }
 
 export interface Insights {

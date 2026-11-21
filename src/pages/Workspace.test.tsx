@@ -156,16 +156,42 @@ describe('task AI help', () => {
 })
 
 describe('insights', () => {
-  it('shows counts, suggestions and an accessible workload table', async () => {
+  // The value of a KPI card, found by its label (M10 cards: label and scope, then the value).
+  const kpi = (label: string) => screen.getByText(label, { selector: 'dt' }).closest('div')!.parentElement!.querySelector('dd')
+
+  it('shows period and current figures, suggestions and an accessible workload table', async () => {
     await renderWorkspace('/app/insights', async (repo) => {
       const [inbox] = await repo.listProjects()
       await repo.createTask({ projectId: inbox.id, title: 'Done thing', status: 'done' })
       await repo.createTask({ projectId: inbox.id, title: 'Open thing' })
     })
     expect(await heading('Insights')).toBeInTheDocument()
-    expect(screen.getByText('Completed').nextElementSibling).toHaveTextContent('1')
+    expect(kpi('Completed tasks')).toHaveTextContent('1')
+    expect(kpi('Completion rate')).toHaveTextContent('50%')
     expect(screen.getByRole('table', { name: 'Planned work per day' })).toBeInTheDocument()
     expect(screen.getByText(/no time estimate/)).toBeInTheDocument()
+    // Each chart is also available as a table.
+    expect(screen.getByRole('table', { name: 'Completed tasks' })).toBeInTheDocument()
+  })
+
+  it('filters by project and period, and keeps the filters in the URL', async () => {
+    const { user } = await renderWorkspace('/app/insights', async (repo) => {
+      const [inbox] = await repo.listProjects()
+      const thesis = await repo.createProject({ name: 'Thesis' })
+      await repo.createTask({ projectId: inbox.id, title: 'Inbox done', status: 'done' })
+      await repo.createTask({ projectId: thesis.id, title: 'Thesis open' })
+      await repo.createTask({ projectId: thesis.id, title: 'Thesis open too' })
+    })
+    expect(await heading('Insights')).toBeInTheDocument()
+    expect(kpi('Completion rate')).toHaveTextContent('33%')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'Thesis')
+    expect(kpi('Completion rate')).toHaveTextContent('0%')
+    expect(kpi('Completed tasks')).toHaveTextContent('0')
+    expect(screen.getByText('No tasks were completed in this period.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '7 days' }))
+    expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Custom' }))
+    expect(screen.getByLabelText('From')).toBeInTheDocument()
   })
 })
 
