@@ -2,7 +2,7 @@
 
 A full-stack productivity app for students, developers and professionals: organize projects, manage tasks and subtasks, track progress, plan their time on a calendar with a scheduling engine, and use an AI workspace to turn goals into plans. *Plan smarter. Organize better. Get things done.* Built as a learning and portfolio project.
 
-> **Status:** 🚧 In development. M1–M8 are complete: secure accounts (email confirmation, password reset), a dashboard on a Hono API with a Neon PostgreSQL database, and end-to-end tests. M9 (AI workspace and smart calendar) is complete: real AI via Claude Haiku 5.5 with an app-wide spending cap, and a free Demo AI fallback. The current visual design is temporary: M10 is a complete redesign of the landing page and the dashboard.
+> **Status:** 🚧 In development. M1–M8 are complete: secure accounts (email confirmation, password reset), a dashboard on a Hono API with a Neon PostgreSQL database, and end-to-end tests. M9 (AI workspace and smart calendar) is complete: real AI via Claude Haiku 5.5 with an app-wide spending cap, and a free Demo AI fallback. M10 (complete visual redesign: light and dark themes, new landing page, sidebar app layout, Insights with filters) is implemented on the `feature/m10-ui-redesign` branch and awaiting review.
 
 ## Features
 

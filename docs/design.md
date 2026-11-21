@@ -2,13 +2,79 @@
 
 Single source of truth for the visual design of AI Task Manager. Code (design tokens in `src/index.css`) must match this document; change this document first when the design changes.
 
-**Status:** Approved (2026-11-10). The landing page and the dashboard are **temporary designs**: they stay accessible, responsive and usable until M10.
+**Status:** M10 redesign implemented (2026-11-21), approved Direction A "Midnight Focus". **Section 0 below is current.** Sections 1–12 describe the M3–M9 design; where they conflict with section 0 (dark-only palette, top navigation, particle-wave hero), section 0 wins. They are kept for history and for the rules that still apply (accessibility, motion durations, dialogs).
 
 > **Decision (2026-11-10, M5 review):** M10 is a **complete visual redesign** of both the landing page and the dashboard, not a round of colour or styling tweaks. Layout, visual language, components and motion are all open for change; this document is rewritten for it at the start of M10. Until then, no time goes into visual polish: function, usability and accessibility come first.
 
 Every decision is tagged with where it came from; both kinds are approved:
 - **[Approved]**: agreed in an earlier design session
 - **[Proposed]**: proposed in the 2026-11-10 draft and approved in that review
+
+---
+
+## 0. M10 design system (current) [Approved 2026-11-20/21: Direction A "Midnight Focus", landing and app]
+
+Visual reference: the approved connected prototype (private artifact, 2026-11-20). Decisions:
+
+**Themes.** Light (icy off-white) and dark (deep graphite), both designed. The user's choice is
+stored in localStorage (`theme`: light | dark; none = follow the device) by `src/lib/theme.ts`,
+applied as `data-theme` on `<html>` before first paint (inline script in `index.html`), and
+shared by the landing page and the app. Toggle: sidebar (app, large screens), top bar (app, small
+screens) and the landing header.
+
+**Tokens** (`src/index.css`). Names kept from M3–M9 so components switch theme without changes;
+values below are light / dark.
+
+| Token | Role | Light | Dark |
+|---|---|---|---|
+| night | page background | #fafcfd | #0b1018 |
+| surface / raised | cards / inset areas | #ffffff / #f2f6f9 | #111824 / #162031 |
+| ink / ink-muted / ink-subtle | text | #111318 / #56657a / #5f6e83 | #f5f7fa / #a5b2c3 / #8b98ab |
+| line / line-strong / line-input | borders | #e2e9f0 / #cfd9e3 / #7a8a9f | #212c3d / #2e3b50 / #64758f |
+| glow (accent) / glow-deep | links, focus, active / gradient end | #0f6f86 / #4f46c8 | #7fdcea / #b2abff |
+| btn / btn-ink | primary button | #111318 / #ffffff | #f5f7fa / #0b1018 |
+| cyan, mint, sky, lav | soft fills (glows, gradients) | #8edfe9, #b8f5e8, #a9cfff, #c8c5ff | #41c8d9, #65d9c8, #568df0, #9187ea |
+| line-cyan … line-lav | thin lines, dots, chart bars | #46c3d3, #5fd6bd, #6aa6f2, #8f89f0 | #6fdeec, #7fe8d5, #86b0ff, #b2abff |
+| danger / warn / ok | status text | #b4233c / #9a5b00 / #12795a | #ff8a9b / #f2b85b / #5fdcae |
+| category-* + on-tint | calendar categories | light pastels, text #0b1018 | M9 tints, text #0b1018 |
+
+Identity colours are decorative only: meaning is always also carried by text.
+
+**Measured contrast** (WCAG 2.x, against night / surface / raised). Light: ink 18.1/18.6/17.1,
+ink-muted 5.8/5.9/5.5, ink-subtle 5.1/5.2/4.8, glow 5.6/5.8/5.3, danger 6.3/6.5/6.0, warn
+5.3/5.4/5.0, ok 5.2/5.4/4.9, input borders 3.4/3.5/3.2. Dark: ink 17.8/16.6/15.2, ink-muted
+8.9/8.3/7.6, ink-subtle 6.5/6.1/5.6, glow 12.1/11.3/10.4, danger 8.5/7.9/7.3, input borders
+4.1/3.8/3.5. Primary button text 18.6 (light) / 17.8 (dark). on-tint on category tints: 14.0–16.1
+(light), 9.1–12.6 (dark). All text pairs pass AA (4.5:1), borders pass 3:1.
+
+**Typography.** Sora (headings, `--font-display`), Inter (UI), system monospace for small
+labels and figures. Instrument Serif italic (`--font-serif`, @fontsource, OFL) only for one
+accent word per landing heading ("focus."), with the cyan-to-lavender text gradient. Inside the
+app all headings are sans-serif. App page titles use `text-page`
+(clamp 1.6–2.1rem); the landing headline is clamp(3.4rem, 7.5vw, 6.75rem) on desktop, 3–4.6rem
+on tablets, 2.35–2.9rem on phones.
+
+**App layout.** Sidebar (15.5rem) with the main navigation (Today, Projects, Calendar, AI
+Assistant, Insights, Settings), theme toggle and "Back to website" on large screens; a top bar
+with the section name and the account menu (Settings, Back to website, Sign out); a bottom
+navigation bar on phones and tablets. Both navigations are named "Main"; only one is visible.
+Pill buttons (primary = btn), 0.75rem control radius, 1.25rem card radius, hairline borders,
+soft shadows; quiet mint/lavender washes behind page headers and the sidebar top only.
+
+**Landing.** Centred hero with a feature marquee (pauses on hover/focus), animated edge
+lighting (thin lines with travelling light, drifting glows; CSS only, no pointer events, subtle
+pointer parallax on fine pointers), product preview with tabs, feature explorer, how it works,
+interactive examples (assistant approval, scheduling, project progress; sample data, labelled),
+final call to action, footer. Log in → /login, Get started → /signup.
+
+**Motion.** CSS only (no animation library was added). Under prefers-reduced-motion every
+animation stops (global rule) and the landing marquee and edge lighting switch to static
+versions.
+
+**Insights.** KPI cards labelled with their scope (selected period, Now, Next 7 days); accessible
+bar charts (focusable bars with values, "Show as table"); status breakdown counting each task
+once; filters (7/30/90 days, custom range, project) kept in the URL. "Focus marked done" is
+self-reported (session status), never derived from planned sessions.
 
 ---
 
