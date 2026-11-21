@@ -1,5 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
 import { PREVIEW_EVENTS } from '../../data/landingPreview'
+import { useDeviceToday } from '../../hooks/useDeviceToday'
+import { formatDayRange, formatWeekdayDate, workWeekOf } from '../../lib/dateLabels'
 import { Reveal } from './Reveal'
 import { WeekPreview } from './WeekPreview'
 
@@ -27,6 +29,9 @@ const BARS = [
 /** A framed preview of the app with Today / Calendar / Assistant tabs (sample data; arrow keys switch tabs). */
 export function ProductPreview() {
   const [tab, setTab] = useState<Tab>('today')
+  // The visitor's own date, so the preview never shows a stale day.
+  const today = useDeviceToday()
+  const week = workWeekOf(today)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -85,10 +90,10 @@ export function ProductPreview() {
               <div className="p-4 md:p-5">
                 {tab === 'today' && (
                   <div id="preview-panel-today" role="tabpanel" aria-labelledby="preview-tab-today" className="lp-panel grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-                    <h3 className="font-display text-xl font-semibold tracking-tight text-ink lg:col-span-2">Friday, 20 November</h3>
+                    <h3 className="font-display text-xl font-semibold tracking-tight text-ink lg:col-span-2">{formatWeekdayDate(today)}</h3>
                     <div className="grid gap-3.5">
                       <div className="lp-next rounded-2xl border border-line p-4">
-                        <span className="font-mono text-xs text-glow">NEXT · 10:45 – 12:15 · in 25 min</span>
+                        <span className="font-mono text-xs text-glow">NEXT · 10:45 – 12:15 · sample session</span>
                         <b className="mt-1 block font-display text-lg text-ink">Methods section</b>
                         <span className="text-sm text-ink-muted">Thesis · 90 min focus session · 2 of 5 subtasks</span>
                       </div>
@@ -119,7 +124,7 @@ export function ProductPreview() {
                 )}
                 {tab === 'calendar' && (
                   <div id="preview-panel-calendar" role="tabpanel" aria-labelledby="preview-tab-calendar" className="lp-panel grid gap-4">
-                    <h3 className="font-display text-xl font-semibold tracking-tight text-ink">16 – 20 November</h3>
+                    <h3 className="font-display text-xl font-semibold tracking-tight text-ink">{formatDayRange(week[0].date, week[4].date)}</h3>
                     <div className="rounded-2xl border border-line">
                       <WeekPreview events={PREVIEW_EVENTS} />
                     </div>

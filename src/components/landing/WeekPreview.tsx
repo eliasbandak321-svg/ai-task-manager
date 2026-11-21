@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react'
-import { PREVIEW_DAYS, PREVIEW_TODAY_INDEX, type PreviewCategory, type PreviewEvent } from '../../data/landingPreview'
+import { type PreviewCategory, type PreviewEvent } from '../../data/landingPreview'
+import { useDeviceToday } from '../../hooks/useDeviceToday'
+import { workWeekOf } from '../../lib/dateLabels'
 
 const COLOUR: Record<PreviewCategory, string> = { focus: 'var(--lp-focus)', class: 'var(--lp-class)', meet: 'var(--lp-meet)', personal: 'var(--lp-personal)' }
 const minutes = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3))
@@ -13,17 +15,18 @@ interface WeekPreviewProps {
   rowHeight?: number
 }
 
-/** A static five-day week (sample data) drawn for the landing page. The app itself uses FullCalendar. */
+/** The visitor's current Monday–Friday with sample events, drawn for the landing page. The app itself uses FullCalendar. */
 export function WeekPreview({ events, startHour = 9, endHour = 18, rowHeight = 40 }: WeekPreviewProps) {
+  const week = workWeekOf(useDeviceToday())
   const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index)
   return (
     <div className="overflow-x-auto">
       <div className="grid min-w-[31rem] grid-cols-[2.75rem_repeat(5,minmax(5.5rem,1fr))] text-xs">
         <div className="border-b border-line" />
-        {PREVIEW_DAYS.map((day, index) => (
+        {week.map((day) => (
           <div key={day.date} className="border-b border-l border-line p-2 text-ink-subtle">
             {day.short}
-            <b className={`block font-mono text-[0.9375rem] font-medium ${index === PREVIEW_TODAY_INDEX ? 'text-glow' : 'text-ink'}`}>{day.date}</b>
+            <b className={`block font-mono text-[0.9375rem] font-medium ${day.isToday ? 'text-glow' : 'text-ink'}`}>{day.day}</b>
           </div>
         ))}
         <div>
@@ -33,7 +36,7 @@ export function WeekPreview({ events, startHour = 9, endHour = 18, rowHeight = 4
             </div>
           ))}
         </div>
-        {PREVIEW_DAYS.map((day, dayIndex) => (
+        {week.map((day, dayIndex) => (
           <div key={day.date} className="lp-grid-lines relative border-l border-line" style={{ height: hours.length * rowHeight, backgroundSize: `100% ${rowHeight}px` }}>
             {events
               .filter((event) => event.day === dayIndex)

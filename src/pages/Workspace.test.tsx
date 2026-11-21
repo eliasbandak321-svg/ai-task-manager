@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { createMemoryStorage, LocalRepository } from '../data/localRepository'
+import { addDays, defaultPreferences, toIsoDate, zonedToUtc } from '../domain'
 import { createQueryClient } from '../data/queryClient'
 import { createFakeAuthClient } from '../test/fakeAuthClient'
 import { createFakeWorkspaceClient } from '../test/fakeWorkspaceClient'
@@ -192,6 +193,87 @@ describe('insights', () => {
     expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: 'Custom' }))
     expect(screen.getByLabelText('From')).toBeInTheDocument()
+  })
+})
+
+describe('insights periods (calendar data in chunks the API accepts)', () => {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const today = toIsoDate(new Date(), zone)
+  const kpi = (label: string) => screen.getByText(label, { selector: 'dt' }).closest('div')!.parentElement!.querySelector('dd')
+
+  /** Completed work sessions placed at the edges of each period (all times in the user's zone). */
+  async function setupSessions(workspace: ReturnType<typeof createFakeWorkspaceClient>) {
+    await workspace.savePreferences(defaultPreferences(zone))
+    const at = (offset: number, minutes: number) => zonedToUtc(addDays(today, offset), minutes, zone).toISOString()
+    const sessions: [string, string, string][] = [
+      ['A outside 90 days', at(-90, 600), at(-90, 660)], // 1 h, only in long custom ranges
+      ['B first day of 90', at(-89, 30), at(-89, 90)], // 1 h
+      ['C across the chunk boundary', at(-30, 1380), at(-29, 60)], // 2 h, returned by both 90-day chunks
+      ['E first day of 30', at(-29, 600), at(-29, 660)], // 1 h
+      ['D in the last week', at(-6, 600), at(-6, 660)], // 1 h
+    ]
+    for (const [title, startAt, endAt] of sessions) await workspace.createEvent({ title, category: 'focus', startAt, endAt, timeZone: zone })
+    for (const event of workspace.events) event.sessionStatus = 'completed'
+  }
+  const seedTask = async (repo: LocalRepository) => {
+    const [inbox] = await repo.listProjects()
+    await repo.createTask({ projectId: inbox.id, title: 'Something open' })
+  }
+  const maxRequestDays = (workspace: ReturnType<typeof createFakeWorkspaceClient>) =>
+    Math.max(...workspace.calendarRequests.map((request) => (new Date(request.to).getTime() - new Date(request.from).getTime()) / 86_400_000))
+
+  it.each([
+    ['7', '1 h'],
+    ['30', '2 h'],
+    ['90', '5 h'],
+  ])('loads the last %s days and counts each session once, inside the period only', async (period, done) => {
+    const { workspace } = await renderWorkspace(`/app/insights?period=${period}`, seedTask, setupSessions)
+    expect(await heading('Insights')).toBeInTheDocument()
+    expect(screen.queryByText("Insights couldn't be loaded")).not.toBeInTheDocument()
+    expect(kpi('Focus marked done')).toHaveTextContent(done)
+    expect(maxRequestDays(workspace)).toBeLessThanOrEqual(62)
+  })
+
+  it('splits a 90-day period into requests of at most 62 days', async () => {
+    const { workspace } = await renderWorkspace('/app/insights?period=90', seedTask, setupSessions)
+    await heading('Insights')
+    // 90 days plus the next 7 days of planned work: two requests.
+    await waitFor(() => expect(new Set(workspace.calendarRequests.map((request) => request.from)).size).toBe(2))
+  })
+
+  it('supports custom ranges up to a year and explains anything longer', async () => {
+    const from = addDays(today, -199)
+    const { workspace } = await renderWorkspace(`/app/insights?period=custom&from=${from}&to=${today}`, seedTask, setupSessions)
+    await heading('Insights')
+    expect(kpi('Focus marked done')).toHaveTextContent('6 h')
+    expect(maxRequestDays(workspace)).toBeLessThanOrEqual(62)
+  })
+
+  it('refuses ranges longer than a year with a clear message instead of an error page', async () => {
+    await renderWorkspace(`/app/insights?period=custom&from=${addDays(today, -400)}&to=${today}`, seedTask, setupSessions)
+    expect(await screen.findByText('Choose a valid period')).toBeInTheDocument()
+    expect(screen.getAllByText(/at most 366 days/).length).toBeGreaterThan(0)
+  })
+
+  it('shows an empty state when the period has no sessions', async () => {
+    await renderWorkspace('/app/insights?period=7', seedTask)
+    await heading('Insights')
+    expect(screen.getByText('No work sessions in this period.')).toBeInTheDocument()
+    expect(kpi('Focus marked done')).toHaveTextContent('0 h')
+  })
+
+  it('keeps task figures when the calendar fails, and Try again recovers', async () => {
+    const { user, workspace } = await renderWorkspace('/app/insights?period=90', seedTask, async (client) => {
+      await setupSessions(client)
+      client.failCalendar = true
+    })
+    expect(await heading('Insights')).toBeInTheDocument()
+    expect(kpi('Completion rate')).toHaveTextContent('0%')
+    expect(kpi('Focus marked done')).toHaveTextContent('—')
+    workspace.failCalendar = false
+    await user.click(screen.getAllByRole('button', { name: 'Try again' })[0])
+    await waitFor(() => expect(kpi('Focus marked done')).toHaveTextContent('5 h'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
 

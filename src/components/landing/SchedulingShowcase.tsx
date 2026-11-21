@@ -19,7 +19,7 @@ export function SchedulingShowcase() {
       <div className="mx-auto grid max-w-[75rem] items-center gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-16">
         <Reveal className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-line px-4 py-3.5">
-            <b className="font-display font-semibold text-ink">Week 47</b>
+            <b className="font-display font-semibold text-ink">This week</b>
             <span className="font-mono text-xs text-ink-subtle">Example · 09:00–18:00</span>
           </div>
           <WeekPreview events={events} />

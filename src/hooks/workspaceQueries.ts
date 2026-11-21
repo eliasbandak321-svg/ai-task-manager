@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
-import type { ApplyProposalInput, EditScope, PlanRequest, Preferences, TaskAssistKind } from '../domain'
+import { useMutation, useQueries, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
+import { mergeCalendarRanges, splitDateRange, zonedRange, type ApplyProposalInput, type EditScope, type IsoDate, type PlanRequest, type Preferences, type TaskAssistKind } from '../domain'
 import { useWorkspace } from '../data/workspaceContext'
 import type { CreateEventRequest, EventChange, ScheduleRequest } from '../data/workspaceClient'
 import { queryKeys } from './queries'
@@ -66,6 +66,32 @@ export function useCalendarQuery(from: string | null, to: string | null) {
     queryFn: () => client.listCalendar(from as string, to as string),
     enabled: from !== null && to !== null,
     placeholderData: (previous) => previous,
+  })
+}
+
+/**
+ * Calendar data for whole days from `from` to `to` (inclusive, in the user's time zone), for
+ * periods of any length: split into requests the API accepts (at most 62 days each) and merged
+ * without duplicates. Each chunk is cached under the normal calendar key, so calendar changes
+ * refresh it like any other calendar query. retry() refetches only the chunks that failed.
+ */
+export function useCalendarDaysQuery(from: IsoDate | null, to: IsoDate | null, timeZone: string) {
+  const client = useWorkspace()
+  const chunks = from !== null && to !== null ? splitDateRange(from, to) : []
+  return useQueries({
+    queries: chunks.map((chunk) => {
+      const range = zonedRange(chunk.from, chunk.to, timeZone)
+      const start = range.start.toISOString()
+      const end = range.end.toISOString()
+      return { queryKey: workspaceKeys.calendarRange(start, end), queryFn: () => client.listCalendar(start, end) }
+    }),
+    combine: (results) => ({
+      data: results.length > 0 && results.every((result) => result.data) ? mergeCalendarRanges(results.map((result) => result.data!)) : undefined,
+      isPending: results.some((result) => result.isPending),
+      isError: results.some((result) => result.isError),
+      error: results.find((result) => result.isError)?.error ?? null,
+      retry: () => Promise.all(results.filter((result) => result.isError).map((result) => result.refetch())),
+    }),
   })
 }
 

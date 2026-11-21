@@ -1,6 +1,7 @@
 /*
   Fictional sample content for the landing page's product previews (M10). Not user data.
-  The previews show the week of Monday 16 to Friday 20 November 2026 (ISO week 47).
+  The previews always show the visitor's current week (Monday to Friday) and today's date
+  (useDeviceToday): only the sample events are fixed, placed by weekday.
 */
 
 export type PreviewCategory = 'focus' | 'class' | 'meet' | 'personal'
@@ -14,17 +15,6 @@ export interface PreviewEvent {
   category: PreviewCategory
   proposed?: boolean
 }
-
-export const PREVIEW_DAYS = [
-  { short: 'Mon', date: 16 },
-  { short: 'Tue', date: 17 },
-  { short: 'Wed', date: 18 },
-  { short: 'Thu', date: 19 },
-  { short: 'Fri', date: 20 },
-] as const
-
-/** Friday 20 November is "today" in the previews. */
-export const PREVIEW_TODAY_INDEX = 4
 
 export const PREVIEW_EVENTS: PreviewEvent[] = [
   { day: 0, start: '09:00', end: '10:30', title: 'Statistics lecture', category: 'class' },

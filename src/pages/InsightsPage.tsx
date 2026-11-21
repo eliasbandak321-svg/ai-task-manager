@@ -7,13 +7,16 @@ import { StatusBreakdown } from '../components/insights/StatusBreakdown'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
 import { LoadingMessage } from '../components/ui/LoadingMessage'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { addDays, computeInsightsReport, daysBetween, isIsoDate, type InsightsGranularity, type IsoDate, type Suggestion } from '../domain'
+import { addDays, computeInsightsReport, daysBetween, INSIGHTS_MAX_DAYS, isIsoDate, type InsightsGranularity, type IsoDate, type Suggestion, type SuggestionKind } from '../domain'
 import { useProjectsQuery, useTasksQuery } from '../hooks/queries'
 import { useNow } from '../hooks/useNow'
 import { useToday } from '../hooks/useToday'
-import { useCalendarQuery, usePreferencesQuery, useProposalsQuery, useUserTimeZone } from '../hooks/workspaceQueries'
+import { useCalendarDaysQuery, usePreferencesQuery, useProposalsQuery, useUserTimeZone } from '../hooks/workspaceQueries'
 import { errorMessage, formatIsoDate } from '../lib/format'
-import { formatMinutes, zonedDayRange } from '../lib/time'
+import { formatMinutes } from '../lib/time'
+
+/** Suggestions that depend on calendar data: hidden while it couldn't be loaded, rather than shown wrongly. */
+const CALENDAR_SUGGESTIONS: SuggestionKind[] = ['nothing_planned', 'overloaded_day', 'unscheduled_urgent', 'unmarked_sessions']
 
 const PERIODS = [
   { value: '7', label: '7 days' },
@@ -104,6 +107,7 @@ export function InsightsPage() {
     } else if (customFrom || customTo) rangeError = 'Choose a start date on or before the end date.'
   } else from = addDays(today, -(Number(period) - 1))
   const days = daysBetween(from, to) + 1
+  if (!rangeError && days > INSIGHTS_MAX_DAYS) rangeError = `Choose a period of at most ${INSIGHTS_MAX_DAYS} days.`
   const requested = params.get('by') as InsightsGranularity | null
   const granularity: InsightsGranularity = requested && GRANULARITIES.some((option) => option.value === requested) ? (requested === 'day' && days > 62 ? 'week' : requested) : days > 62 ? 'week' : 'day'
 
@@ -111,8 +115,8 @@ export function InsightsPage() {
   const projectsQuery = useProjectsQuery()
   const preferencesQuery = usePreferencesQuery()
   const proposalsQuery = useProposalsQuery()
-  const range = zonedDayRange(from, addDays(today, 7), timeZone)
-  const calendarQuery = useCalendarQuery(range.from, range.to)
+  // The period plus the next 7 days (planned work), loaded in chunks the API accepts.
+  const calendar = useCalendarDaysQuery(rangeError ? null : from, rangeError ? null : addDays(today, 7), timeZone)
 
   const update = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params)
@@ -123,16 +127,19 @@ export function InsightsPage() {
     setParams(next, { replace: true })
   }
 
-  if (tasksQuery.isPending || projectsQuery.isPending || preferencesQuery.isPending || calendarQuery.isPending) return <LoadingMessage label="Loading insights…" />
-  const failed = [tasksQuery, projectsQuery, preferencesQuery, calendarQuery].find((query) => query.isError)
-  if (failed) return <ErrorMessage title="Insights couldn't be loaded" message={errorMessage(failed.error)} onRetry={() => void Promise.all([tasksQuery.refetch(), projectsQuery.refetch(), calendarQuery.refetch()])} />
+  if (tasksQuery.isPending || projectsQuery.isPending || preferencesQuery.isPending || (calendar.isPending && !calendar.isError)) return <LoadingMessage label="Loading insights…" />
+  // Tasks, projects and preferences are essential; without them there is nothing to show.
+  const failed = [tasksQuery, projectsQuery, preferencesQuery].find((query) => query.isError)
+  if (failed) return <ErrorMessage title="Insights couldn't be loaded" message={errorMessage(failed.error)} onRetry={() => void Promise.all([tasksQuery.refetch(), projectsQuery.refetch(), preferencesQuery.refetch()])} />
+  // Calendar data is optional: if it fails, the task figures still show and the focus figures say so.
+  const calendarFailed = calendar.isError
 
   const projects = projectsQuery.data ?? []
   const selected = projectId ? projects.find((project) => project.id === projectId) : undefined
   const report = computeInsightsReport({
     tasks: tasksQuery.data ?? [],
     projects,
-    occurrences: calendarQuery.data?.occurrences ?? [],
+    occurrences: calendar.data?.occurrences ?? [],
     prefs: preferencesQuery.data!.preferences,
     now: new Date(now),
     from,
@@ -146,6 +153,15 @@ export function InsightsPage() {
   const diff = report.completed.inRange - report.completed.previousRange
   const columns = report.completed.series.map((bucket) => bucketLabels(bucket, granularity))
   const openTasks = report.status.total - report.status.done
+  const suggestions = calendarFailed ? report.suggestions.filter((suggestion) => !CALENDAR_SUGGESTIONS.includes(suggestion.kind)) : report.suggestions
+  const calendarAlert = calendarFailed && (
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-ink">
+      <span>Calendar data couldn't be loaded, so focus and scheduling figures are missing. {errorMessage(calendar.error)}</span>
+      <button type="button" onClick={() => void calendar.retry()} className="min-h-10 rounded-full border border-line-strong bg-surface px-4 font-medium text-ink hover:border-ink">
+        Try again
+      </button>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
@@ -198,7 +214,12 @@ export function InsightsPage() {
         </p>
       </section>
 
-      {report.status.total === 0 ? (
+      {rangeError ? (
+        <div className="rounded-card border border-line bg-surface p-10 text-center">
+          <h2 className="font-display text-lg font-semibold text-ink">Choose a valid period</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">{rangeError} Insights cover up to {INSIGHTS_MAX_DAYS} days at a time.</p>
+        </div>
+      ) : report.status.total === 0 ? (
         <div className="rounded-card border border-line bg-surface p-10 text-center">
           <h2 className="font-display text-lg font-semibold text-ink">No tasks {selected ? `in ${selected.name}` : 'yet'}</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-ink-muted">There is nothing to measure yet. Add tasks and their progress will appear here.</p>
@@ -208,6 +229,7 @@ export function InsightsPage() {
         </div>
       ) : (
         <>
+          {calendarAlert}
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <KpiCard label="Completed tasks" value={report.completed.inRange} scope={periodLabel}>
               {diff === 0 ? 'Same as' : `${diff > 0 ? '+' : ''}${diff} vs`} the previous {report.range.days} days ({report.completed.previousRange})
@@ -218,11 +240,11 @@ export function InsightsPage() {
             <KpiCard label="Overdue tasks" value={report.status.overdue} scope="Now" tone={report.status.overdue > 0 ? 'warn' : 'default'}>
               {report.status.overdue > 0 ? 'Past their due date and not done' : 'Nothing past its due date'}
             </KpiCard>
-            <KpiCard label="Planned focus" value={hoursLabel(report.focus.plannedNext7Minutes)} scope="Next 7 days">
-              {report.focus.upcomingSessions} upcoming work session{report.focus.upcomingSessions === 1 ? '' : 's'}
+            <KpiCard label="Planned focus" value={calendarFailed ? '—' : hoursLabel(report.focus.plannedNext7Minutes)} scope="Next 7 days">
+              {calendarFailed ? 'Calendar unavailable' : `${report.focus.upcomingSessions} upcoming work session${report.focus.upcomingSessions === 1 ? '' : 's'}`}
             </KpiCard>
-            <KpiCard label="Focus marked done" value={hoursLabel(report.focus.completedMinutes)} scope={periodLabel}>
-              Sessions you marked done · {report.focus.unmarkedSessions} not marked
+            <KpiCard label="Focus marked done" value={calendarFailed ? '—' : hoursLabel(report.focus.completedMinutes)} scope={periodLabel}>
+              {calendarFailed ? 'Calendar unavailable' : `Sessions you marked done · ${report.focus.unmarkedSessions} not marked`}
             </KpiCard>
             <KpiCard label="Active projects" value={report.projects.filter((project) => project.total > project.done).length} scope="Now">
               {openTasks} open task{openTasks === 1 ? '' : 's'}
@@ -279,11 +301,11 @@ export function InsightsPage() {
             </Card>
 
             <Card labelledBy="suggestions-heading" title="Worth a look" description="Rules applied to your data, each with its reason">
-              {report.suggestions.length === 0 ? (
+              {suggestions.length === 0 ? (
                 <p className="text-sm text-ink-muted">Nothing needs attention right now.</p>
               ) : (
                 <ul className="space-y-2.5">
-                  {report.suggestions.map((suggestion) => {
+                  {suggestions.map((suggestion) => {
                     const link = suggestionLink(suggestion)
                     return (
                       <li key={`${suggestion.kind}-${suggestion.date ?? ''}-${suggestion.projectId ?? ''}`} className="flex gap-3 rounded-xl border border-line p-3 text-sm text-ink">
@@ -305,6 +327,9 @@ export function InsightsPage() {
           </div>
 
           <Card labelledBy="focus-heading" title="Focus and scheduling" description='From work sessions on your calendar. "Done" means you marked the session done; there is no timer, and planning a session never counts as doing it.'>
+            {calendarFailed ? (
+              calendarAlert
+            ) : (
             <div className="grid gap-8 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
               <div>
                 <p className="mb-3 text-sm font-medium text-ink">Focus hours · {periodLabel}</p>
@@ -362,6 +387,7 @@ export function InsightsPage() {
                 </table>
               </div>
             </div>
+            )}
           </Card>
         </>
       )}

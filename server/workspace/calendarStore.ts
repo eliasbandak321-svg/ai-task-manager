@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, isNotNull, lt, or } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   addDays,
+  CALENDAR_RANGE_MAX_DAYS,
   createEventInputSchema,
   DomainError,
   EDIT_SCOPES,
@@ -28,7 +29,7 @@ import { calendarEvents, tasks } from '../db/schema'
 type EventRow = typeof calendarEvents.$inferSelect
 
 /** The widest range one request may expand (protects the server from huge expansions). */
-export const MAX_RANGE_DAYS = 62
+export const MAX_RANGE_DAYS = CALENDAR_RANGE_MAX_DAYS // 62; shared with the client, which splits longer periods
 
 export const rangeQuerySchema = z
   .object({ from: timestampSchema, to: timestampSchema })
