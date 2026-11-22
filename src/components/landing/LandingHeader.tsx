@@ -1,9 +1,9 @@
 import { Menu, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
 import { useScrolledPast } from '../../hooks/useScrolledPast'
 import { ThemeToggle } from '../ThemeToggle'
 import { Wordmark } from '../Wordmark'
+import { PrimaryCta, SecondaryCta } from './Cta'
 
 const LINKS = [
   { href: '#product', label: 'Product' },
@@ -51,12 +51,8 @@ export function LandingHeader() {
         </nav>
         <div className="flex items-center gap-2 justify-self-end">
           <ThemeToggle />
-          <Link to="/login" className="hidden min-h-10 items-center rounded-lg px-2.5 text-[0.9375rem] whitespace-nowrap text-ink-muted hover:text-ink min-[821px]:inline-flex">
-            Log in
-          </Link>
-          <Link to="/signup" className="lp-btn lp-btn-primary lp-btn-sm hidden min-[821px]:inline-flex">
-            Get started
-          </Link>
+          <SecondaryCta className="hidden min-h-10 items-center rounded-lg px-2.5 text-[0.9375rem] whitespace-nowrap text-ink-muted hover:text-ink min-[821px]:inline-flex" />
+          <PrimaryCta className="lp-btn lp-btn-primary lp-btn-sm hidden min-[821px]:inline-flex" />
           <button
             ref={buttonRef}
             type="button"
@@ -84,8 +80,8 @@ export function LandingHeader() {
             </ul>
           </nav>
           <div className="flex gap-2 px-1 pt-2 pb-1">
-            <Link to="/login" className="lp-btn flex-1">Log in</Link>
-            <Link to="/signup" className="lp-btn lp-btn-primary flex-1">Get started</Link>
+            <SecondaryCta className="lp-btn flex-1" onClick={() => setOpen(false)} />
+            <PrimaryCta className="lp-btn lp-btn-primary flex-1" onClick={() => setOpen(false)} />
           </div>
         </div>
       )}

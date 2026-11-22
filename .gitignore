@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
+# Generated bundles (e.g. the parked M11.1 API bundle, the demo build)
+dist-server/
+dist-demo/
 
 # Environment variables and secrets
 .env
@@ -34,4 +37,5 @@ coverage/
 
 # Playwright end-to-end test output
 playwright-report/
+playwright-report-demo/
 test-results/

@@ -1,8 +1,9 @@
 import { ArrowRight } from 'lucide-react'
 import { useEffect, useRef, type CSSProperties } from 'react'
-import { Link } from 'react-router'
 import { EdgeLighting } from './EdgeLighting'
 import { FeatureMarquee } from './FeatureMarquee'
+import { CTA_COPY } from '../../config/landingCta'
+import { PrimaryCta } from './Cta'
 
 /** Very subtle pointer parallax for the edge lighting: fine pointers only, rAF-throttled, off under reduced motion. */
 function usePointerParallax<T extends HTMLElement>() {
@@ -58,18 +59,17 @@ export function LandingHero() {
           Keep projects, tasks and your calendar in one place. AI Task Manager finds time for the work, and its assistant suggests a plan that only changes your schedule once you approve it.
         </p>
         <div className="lp-rise flex w-full flex-col justify-center gap-3 min-[521px]:w-auto min-[521px]:flex-row" style={rise(3)}>
-          <Link to="/signup" className="lp-btn lp-btn-primary">
-            Get started
+          <PrimaryCta className="lp-btn lp-btn-primary">
             <span className="lp-arrow">
               <ArrowRight aria-hidden="true" className="size-3.5" />
             </span>
-          </Link>
+          </PrimaryCta>
           <a href="#how" className="lp-btn">
             See how it works
           </a>
         </div>
         <p className="lp-rise -mt-1.5 text-[0.8125rem] text-ink-subtle" style={rise(4)}>
-          Email and password account. Your tasks stay private to your account.
+          {CTA_COPY.heroNote}
         </p>
       </div>
     </section>

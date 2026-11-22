@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react'
-import { Link } from 'react-router'
+import { CTA_COPY } from '../../config/landingCta'
+import { PrimaryCta, SecondaryCta } from './Cta'
 import { EdgeLighting } from './EdgeLighting'
 import { Reveal } from './Reveal'
 
@@ -15,15 +16,14 @@ export function FinalCta() {
           <h2 id="final-title" className="lp-h2 text-[clamp(2.4rem,6.4vw,5.4rem)] text-ink">
             Make room for <span className="lp-serif text-gradient">what matters.</span>
           </h2>
-          <p className="max-w-[52ch] text-[1.08rem] text-ink-muted">Create an account, add a project, and let the scheduler propose your first work sessions.</p>
+          <p className="max-w-[52ch] text-[1.08rem] text-ink-muted">{CTA_COPY.finalText}</p>
           <div className="flex flex-wrap justify-center gap-3">
-            <Link to="/signup" className="lp-btn lp-btn-primary">
-              Get started
+            <PrimaryCta className="lp-btn lp-btn-primary">
               <span className="lp-arrow">
                 <ArrowRight aria-hidden="true" className="size-3.5" />
               </span>
-            </Link>
-            <Link to="/login" className="lp-btn">Log in</Link>
+            </PrimaryCta>
+            <SecondaryCta className="lp-btn" />
           </div>
         </div>
       </Reveal>

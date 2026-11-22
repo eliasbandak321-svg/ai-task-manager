@@ -1,7 +1,9 @@
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
+import { useIsDemo } from '../../demo/demoContext'
 import { AccountMenu } from '../auth/AccountMenu'
+import { DemoBanner } from '../demo/DemoBanner'
 import { ThemeToggle } from '../ThemeToggle'
 import { Wordmark } from '../Wordmark'
 import { AppNav } from '../workspace/AppNav'
@@ -21,6 +23,7 @@ export function AppShell() {
   const { pathname } = useLocation()
   const mainRef = useRef<HTMLElement>(null)
   const previousPath = useRef(pathname)
+  const isDemo = useIsDemo()
 
   // In a single-page app the browser doesn't reset focus on navigation. Moving focus to the
   // main region tells screen reader and keyboard users that the page content changed.
@@ -56,6 +59,7 @@ export function AppShell() {
       </aside>
 
       <div className="min-w-0">
+        {isDemo && <DemoBanner />}
         <header className="sticky top-0 z-40 border-b border-line bg-night/85 backdrop-blur-md">
           <div className="flex h-16 items-center gap-3 px-5 md:px-8">
             <div className="lg:hidden">

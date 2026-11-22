@@ -9,6 +9,7 @@ import { AI_LIMITS, type Proposal } from '../domain'
 import { useToast } from '../hooks/toast'
 import { useAiStatusQuery, useChat, useConversationsQuery, useDeleteConversation, useMessagesQuery, useProposalsQuery } from '../hooks/workspaceQueries'
 import { errorMessage } from '../lib/format'
+import { useIsDemo } from '../demo/demoContext'
 
 const SUGGESTIONS = ['What is due this week?', 'What should I focus on today?', 'Schedule my week', 'How am I doing?']
 
@@ -67,6 +68,7 @@ export function AssistantPage() {
     }
   }
 
+  const isPortfolioDemo = useIsDemo()
   return (
     <div className="space-y-6">
       <title>AI Assistant · AI Task Manager</title>
@@ -82,10 +84,22 @@ export function AssistantPage() {
         </Link>
       </div>
 
-      {status.data?.isDemo && (
-        <p className="rounded-control border border-priority-medium/50 p-3 text-sm text-ink">
-          Demo mode: answers come from built-in rules over your real data, not from a language model. No AI service is connected.
-        </p>
+      {isPortfolioDemo ? (
+        <div className="space-y-1 rounded-control border border-priority-medium/50 p-3 text-sm text-ink">
+          <p>
+            <strong className="font-semibold">Simulated AI.</strong> In this demo the assistant gives canned, rule-based answers in your
+            browser. No language model or AI service is contacted.
+          </p>
+          <p className="text-ink-muted">
+            Try “Set Apply to Northwind Labs to high priority” to get a change to approve, or ask about your open tasks.
+          </p>
+        </div>
+      ) : (
+        status.data?.isDemo && (
+          <p className="rounded-control border border-priority-medium/50 p-3 text-sm text-ink">
+            Demo mode: answers come from built-in rules over your real data, not from a language model. No AI service is connected.
+          </p>
+        )
       )}
 
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">

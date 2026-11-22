@@ -33,29 +33,57 @@ import {
 } from '../domain'
 
 /*
-  An in-memory WorkspaceClient for browser tests, built on the real domain logic (recurrence,
-  scheduling, insights) and the test's TaskRepository. The AI here is canned and labelled
-  'mock', like the server's demo provider. Real API behaviour is covered by the server tests
-  and the end-to-end tests.
+  A WorkspaceClient that runs entirely in the browser, built on the real domain logic
+  (recurrence, scheduling, insights, dependencies) and any TaskRepository. Two users:
+  - UI tests (as createFakeWorkspaceClient), in memory;
+  - the portfolio demo (M11, VITE_DEMO=1), which passes saved `initial` state and an
+    `onChange` callback that stores it in sessionStorage (src/demo/demoClients.ts).
+  It never makes network requests. Its AI is SIMULATED: canned, rule-based answers labelled
+  'mock' ("Demo AI"), never a language model. Real API behaviour is covered by the server
+  tests and the full-stack end-to-end tests.
 */
 
-let counter = 0
-const nextId = () => `00000000-0000-4000-9000-${(++counter).toString(16).padStart(12, '0')}`
+/** The owner id on events created here (browser-only: there is one local user). */
+export const LOCAL_USER_ID = '00000000-0000-4000-8000-00000000d3e0'
 
-export interface FakeWorkspaceOptions {
-  now?: () => Date
-  timeZone?: string
+let counter = 0
+const randomPart = () => Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0')
+// A per-page-load prefix keeps ids unique across reloads of a saved demo.
+const idPrefix = `00000000-${randomPart()}-4000-9000`
+const nextId = () => `${idPrefix}-${(++counter).toString(16).padStart(12, '0')}`
+
+/** Everything the in-memory workspace keeps; what the demo saves between page loads. */
+export interface WorkspaceState {
+  preferences: Preferences
+  saved: boolean
+  events: CalendarEvent[]
+  proposals: Proposal[]
+  conversations: (Conversation & { messages: ChatMessage[] })[]
+  dependencies: TaskDependency[]
 }
 
-export function createFakeWorkspaceClient(repository: TaskRepository, { now = () => new Date(), timeZone = 'UTC' }: FakeWorkspaceOptions = {}) {
-  let preferences: Preferences = defaultPreferences(timeZone)
-  let saved = false
-  const events: CalendarEvent[] = []
-  const proposals: Proposal[] = []
-  const conversations: (Conversation & { messages: ChatMessage[] })[] = []
+export interface InMemoryWorkspaceOptions {
+  now?: () => Date
+  timeZone?: string
+  /** Saved state to start from (the demo); otherwise empty with default preferences. */
+  initial?: WorkspaceState
+  /** Called with the full state after every change (the demo saves it). */
+  onChange?: (state: WorkspaceState) => void
+}
+
+export function createInMemoryWorkspaceClient(
+  repository: TaskRepository,
+  { now = () => new Date(), timeZone = 'UTC', initial, onChange }: InMemoryWorkspaceOptions = {},
+) {
+  let preferences: Preferences = initial?.preferences ?? defaultPreferences(timeZone)
+  let saved = initial?.saved ?? false
+  const events: CalendarEvent[] = [...(initial?.events ?? [])]
+  const proposals: Proposal[] = [...(initial?.proposals ?? [])]
+  const conversations: (Conversation & { messages: ChatMessage[] })[] = [...(initial?.conversations ?? [])]
   const calls: { method: string; args: unknown[] }[] = []
   const calendarRequests: { from: string; to: string }[] = []
-  let dependencies: TaskDependency[] = []
+  let dependencies: TaskDependency[] = [...(initial?.dependencies ?? [])]
+  const snapshot = (): WorkspaceState => ({ preferences, saved, events, proposals, conversations, dependencies })
 
   const record = (method: string, ...args: unknown[]) => calls.push({ method, args })
 
@@ -106,7 +134,7 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
       record('createEvent', input)
       const parsed = createEventInputSchema.parse(input)
       const stamp = now().toISOString()
-      const event: CalendarEvent = { id: nextId(), userId: 'fake', ...parsed, excludedStarts: [], seriesId: null, originalStart: null, sessionStatus: 'planned', createdAt: stamp, updatedAt: stamp }
+      const event: CalendarEvent = { id: nextId(), userId: LOCAL_USER_ID, ...parsed, excludedStarts: [], seriesId: null, originalStart: null, sessionStatus: 'planned', createdAt: stamp, updatedAt: stamp }
       events.push(event)
       return event
     },
@@ -292,6 +320,22 @@ export function createFakeWorkspaceClient(repository: TaskRepository, { now = ()
           : null
       return { content: `Demo help (${kind}).`, source: 'mock', proposal }
     },
+  }
+
+  // Save after every change (the demo); reads don't change anything.
+  if (onChange) {
+    const mutating = [
+      'savePreferences', 'createEvent', 'updateEvent', 'deleteEvent', 'setDependencies', 'proposeSchedule',
+      'applyProposal', 'rejectProposal', 'chat', 'deleteConversation', 'generatePlan', 'assistTask',
+    ] as const
+    for (const name of mutating) {
+      const original = client[name] as (...args: unknown[]) => Promise<unknown>
+      ;(client as unknown as Record<string, unknown>)[name] = async (...args: unknown[]) => {
+        const result = await original(...args)
+        onChange(snapshot())
+        return result
+      }
+    }
   }
   return client
 }

@@ -1,6 +1,8 @@
 import { Link } from 'react-router'
 import { site } from '../../config/site'
+import { IS_DEMO } from '../../demo/demoMode'
 import { Wordmark } from '../Wordmark'
+import { PrimaryCta, SecondaryCta } from './Cta'
 
 /** Site footer (M10). */
 export function LandingFooter() {
@@ -23,9 +25,10 @@ export function LandingFooter() {
             </div>
             <div className="flex flex-col gap-2">
               <b className="mb-1 font-semibold text-ink">Account</b>
-              <Link to="/login" className={linkClass}>Log in</Link>
-              <Link to="/signup" className={linkClass}>Get started</Link>
+              {!IS_DEMO && <SecondaryCta className={linkClass} />}
+              <PrimaryCta className={linkClass} />
               <a href={site.repoUrl} className={linkClass}>Source on GitHub</a>
+              <Link to="/privacy" className={linkClass}>Privacy</Link>
             </div>
           </nav>
         </div>

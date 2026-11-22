@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { useSession, useSignOut } from '../../hooks/auth'
 import { useToast } from '../../hooks/toast'
 import { errorMessage } from '../../lib/format'
+import { useIsDemo } from '../../demo/demoContext'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -17,6 +18,7 @@ function initials(name: string): string {
 export function AccountMenu() {
   const { data: user } = useSession()
   const signOut = useSignOut()
+  const isDemo = useIsDemo()
   const navigate = useNavigate()
   const toast = useToast()
   const [open, setOpen] = useState(false)
@@ -102,11 +104,14 @@ export function AccountMenu() {
               <Settings aria-hidden="true" className="size-4" /> Settings
             </Link>
             <Link role="menuitem" to="/" className={itemClass} onClick={() => setOpen(false)}>
-              <ArrowLeft aria-hidden="true" className="size-4" /> Back to website
+              <ArrowLeft aria-hidden="true" className="size-4" /> {isDemo ? 'Exit demo' : 'Back to website'}
             </Link>
-            <button role="menuitem" type="button" className={itemClass} onClick={() => void handleSignOut()} disabled={signOut.isPending}>
-              <LogOut aria-hidden="true" className="size-4" /> {signOut.isPending ? 'Signing out…' : 'Sign out'}
-            </button>
+            {/* The demo has no accounts to sign out of (M11). */}
+            {!isDemo && (
+              <button role="menuitem" type="button" className={itemClass} onClick={() => void handleSignOut()} disabled={signOut.isPending}>
+                <LogOut aria-hidden="true" className="size-4" /> {signOut.isPending ? 'Signing out…' : 'Sign out'}
+              </button>
+            )}
           </div>
         </div>
       )}
