@@ -164,7 +164,7 @@ export function CalendarPage() {
         </Suspense>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,24rem)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(0,24rem)]">
         <section aria-labelledby="agenda-heading" className="rounded-card border border-line bg-surface p-5">
           <h2 id="agenda-heading" className="font-display text-h3 font-semibold text-ink">
             Agenda

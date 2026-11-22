@@ -29,6 +29,13 @@ function niceMax(value: number): number {
  * name and a tooltip on hover or focus; the same numbers are available as a table. Stacked when
  * there is more than one series. Plain HTML and CSS, no chart library.
  */
+/** Where a bar's tooltip attaches: centred, or at the chart's edge for the outer bars. */
+function tipAnchor(index: number, count: number): string {
+  if (index < count / 3) return 'left-0'
+  if (index >= (count * 2) / 3) return 'right-0'
+  return 'left-1/2 -translate-x-1/2'
+}
+
 export function BarChart({ title, columns, series, formatValue = String, height = 11 }: BarChartProps) {
   const tableId = useId()
   const totals = columns.map((_, index) => series.reduce((sum, entry) => sum + entry.values[index], 0))
@@ -59,7 +66,9 @@ export function BarChart({ title, columns, series, formatValue = String, height 
                 {column.capacity !== undefined && column.capacity > 0 && (
                   <span aria-hidden="true" className="pointer-events-none absolute inset-x-[8%] border-t-[1.5px] border-dashed border-ink-subtle" style={{ bottom: `${(column.capacity / max) * 100}%` }} />
                 )}
-                <span role="tooltip" className="chart-tip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-xs whitespace-nowrap text-night opacity-0 shadow-soft transition-opacity duration-(--duration-fast) group-hover:opacity-100 group-focus-visible:opacity-100">
+                {/* Not rendered until hover or focus (display: none), so hidden tooltips can't widen the page on
+                    phones; the outer thirds anchor at their edge so a shown tooltip stays on screen. */}
+                <span role="tooltip" className={`chart-tip pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-lg bg-ink px-2.5 py-1.5 text-xs whitespace-nowrap text-night shadow-soft group-hover:block group-focus-visible:block ${tipAnchor(index, columns.length)}`}>
                   {describe(index)}
                 </span>
               </button>
