@@ -4,7 +4,7 @@
 
 A full-stack productivity app: projects, tasks and subtasks, a calendar with a scheduling engine that finds time for your work, an AI assistant whose suggestions only change anything after you approve them, and insights into your progress. Built from scratch as a learning and portfolio project, with a focus on clean architecture, security and tests.
 
-**Live demo:** *link coming soon* · no account needed, runs entirely in your browser with fictional sample data
+**Live demo:** [ai-task-manager-mauve-one.vercel.app](https://ai-task-manager-mauve-one.vercel.app) · no account needed, runs entirely in your browser with fictional sample data
 
 ![Today: the next work session, deadlines, progress and suggestions](docs/screenshots/today.png)
 
