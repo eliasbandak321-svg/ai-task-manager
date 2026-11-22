@@ -8,7 +8,7 @@ import { expect, signUpAndConfirm, test } from './support'
 */
 
 const PAGES = [
-  { link: 'Dashboard', heading: 'Dashboard' },
+  { link: 'Today', heading: /^Today,/ },
   { link: 'Calendar', heading: 'Calendar' },
   { link: 'Projects', heading: 'All tasks' },
   { link: 'AI Assistant', heading: /AI Assistant/ },

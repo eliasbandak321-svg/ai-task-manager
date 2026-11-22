@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { createMemoryStorage, LocalRepository } from '../data/localRepository'
+import { addDays, defaultPreferences, toIsoDate, zonedToUtc } from '../domain'
 import { createQueryClient } from '../data/queryClient'
 import { createFakeAuthClient } from '../test/fakeAuthClient'
 import { createFakeWorkspaceClient } from '../test/fakeWorkspaceClient'
@@ -50,12 +51,13 @@ const location = () => screen.getByTestId('location').textContent
 describe('navigation and dashboard', () => {
   it('shows every section in the main navigation and the dashboard overview', async () => {
     const { user } = await renderWorkspace('/app')
-    expect(await heading('Dashboard')).toBeInTheDocument()
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const name of ['Dashboard', 'Calendar', 'Projects', 'AI Assistant', 'Insights', 'Settings']) {
+    expect(await heading(/^Today,/)).toBeInTheDocument()
+    // The sidebar and the phone bottom bar are both named "Main"; CSS shows one at a time (jsdom has no CSS).
+    const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]
+    for (const name of ['Today', 'Calendar', 'Projects', 'AI Assistant', 'Insights', 'Settings']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
-    expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page')
     expect(await screen.findByRole('link', { name: /Set availability/ })).toBeInTheDocument()
 
     await user.click(within(nav).getByRole('link', { name: 'Projects' }))
@@ -155,16 +157,123 @@ describe('task AI help', () => {
 })
 
 describe('insights', () => {
-  it('shows counts, suggestions and an accessible workload table', async () => {
+  // The value of a KPI card, found by its label (M10 cards: label and scope, then the value).
+  const kpi = (label: string) => screen.getByText(label, { selector: 'dt' }).closest('div')!.parentElement!.querySelector('dd')
+
+  it('shows period and current figures, suggestions and an accessible workload table', async () => {
     await renderWorkspace('/app/insights', async (repo) => {
       const [inbox] = await repo.listProjects()
       await repo.createTask({ projectId: inbox.id, title: 'Done thing', status: 'done' })
       await repo.createTask({ projectId: inbox.id, title: 'Open thing' })
     })
     expect(await heading('Insights')).toBeInTheDocument()
-    expect(screen.getByText('Completed').nextElementSibling).toHaveTextContent('1')
+    expect(kpi('Completed tasks')).toHaveTextContent('1')
+    expect(kpi('Completion rate')).toHaveTextContent('50%')
     expect(screen.getByRole('table', { name: 'Planned work per day' })).toBeInTheDocument()
     expect(screen.getByText(/no time estimate/)).toBeInTheDocument()
+    // Each chart is also available as a table.
+    expect(screen.getByRole('table', { name: 'Completed tasks' })).toBeInTheDocument()
+  })
+
+  it('filters by project and period, and keeps the filters in the URL', async () => {
+    const { user } = await renderWorkspace('/app/insights', async (repo) => {
+      const [inbox] = await repo.listProjects()
+      const thesis = await repo.createProject({ name: 'Thesis' })
+      await repo.createTask({ projectId: inbox.id, title: 'Inbox done', status: 'done' })
+      await repo.createTask({ projectId: thesis.id, title: 'Thesis open' })
+      await repo.createTask({ projectId: thesis.id, title: 'Thesis open too' })
+    })
+    expect(await heading('Insights')).toBeInTheDocument()
+    expect(kpi('Completion rate')).toHaveTextContent('33%')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'Thesis')
+    expect(kpi('Completion rate')).toHaveTextContent('0%')
+    expect(kpi('Completed tasks')).toHaveTextContent('0')
+    expect(screen.getByText('No tasks were completed in this period.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '7 days' }))
+    expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Custom' }))
+    expect(screen.getByLabelText('From')).toBeInTheDocument()
+  })
+})
+
+describe('insights periods (calendar data in chunks the API accepts)', () => {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const today = toIsoDate(new Date(), zone)
+  const kpi = (label: string) => screen.getByText(label, { selector: 'dt' }).closest('div')!.parentElement!.querySelector('dd')
+
+  /** Completed work sessions placed at the edges of each period (all times in the user's zone). */
+  async function setupSessions(workspace: ReturnType<typeof createFakeWorkspaceClient>) {
+    await workspace.savePreferences(defaultPreferences(zone))
+    const at = (offset: number, minutes: number) => zonedToUtc(addDays(today, offset), minutes, zone).toISOString()
+    const sessions: [string, string, string][] = [
+      ['A outside 90 days', at(-90, 600), at(-90, 660)], // 1 h, only in long custom ranges
+      ['B first day of 90', at(-89, 30), at(-89, 90)], // 1 h
+      ['C across the chunk boundary', at(-30, 1380), at(-29, 60)], // 2 h, returned by both 90-day chunks
+      ['E first day of 30', at(-29, 600), at(-29, 660)], // 1 h
+      ['D in the last week', at(-6, 600), at(-6, 660)], // 1 h
+    ]
+    for (const [title, startAt, endAt] of sessions) await workspace.createEvent({ title, category: 'focus', startAt, endAt, timeZone: zone })
+    for (const event of workspace.events) event.sessionStatus = 'completed'
+  }
+  const seedTask = async (repo: LocalRepository) => {
+    const [inbox] = await repo.listProjects()
+    await repo.createTask({ projectId: inbox.id, title: 'Something open' })
+  }
+  const maxRequestDays = (workspace: ReturnType<typeof createFakeWorkspaceClient>) =>
+    Math.max(...workspace.calendarRequests.map((request) => (new Date(request.to).getTime() - new Date(request.from).getTime()) / 86_400_000))
+
+  it.each([
+    ['7', '1 h'],
+    ['30', '2 h'],
+    ['90', '5 h'],
+  ])('loads the last %s days and counts each session once, inside the period only', async (period, done) => {
+    const { workspace } = await renderWorkspace(`/app/insights?period=${period}`, seedTask, setupSessions)
+    expect(await heading('Insights')).toBeInTheDocument()
+    expect(screen.queryByText("Insights couldn't be loaded")).not.toBeInTheDocument()
+    expect(kpi('Focus marked done')).toHaveTextContent(done)
+    expect(maxRequestDays(workspace)).toBeLessThanOrEqual(62)
+  })
+
+  it('splits a 90-day period into requests of at most 62 days', async () => {
+    const { workspace } = await renderWorkspace('/app/insights?period=90', seedTask, setupSessions)
+    await heading('Insights')
+    // 90 days plus the next 7 days of planned work: two requests.
+    await waitFor(() => expect(new Set(workspace.calendarRequests.map((request) => request.from)).size).toBe(2))
+  })
+
+  it('supports custom ranges up to a year and explains anything longer', async () => {
+    const from = addDays(today, -199)
+    const { workspace } = await renderWorkspace(`/app/insights?period=custom&from=${from}&to=${today}`, seedTask, setupSessions)
+    await heading('Insights')
+    expect(kpi('Focus marked done')).toHaveTextContent('6 h')
+    expect(maxRequestDays(workspace)).toBeLessThanOrEqual(62)
+  })
+
+  it('refuses ranges longer than a year with a clear message instead of an error page', async () => {
+    await renderWorkspace(`/app/insights?period=custom&from=${addDays(today, -400)}&to=${today}`, seedTask, setupSessions)
+    expect(await screen.findByText('Choose a valid period')).toBeInTheDocument()
+    expect(screen.getAllByText(/at most 366 days/).length).toBeGreaterThan(0)
+  })
+
+  it('shows an empty state when the period has no sessions', async () => {
+    await renderWorkspace('/app/insights?period=7', seedTask)
+    await heading('Insights')
+    expect(screen.getByText('No work sessions in this period.')).toBeInTheDocument()
+    expect(kpi('Focus marked done')).toHaveTextContent('0 h')
+  })
+
+  it('keeps task figures when the calendar fails, and Try again recovers', async () => {
+    const { user, workspace } = await renderWorkspace('/app/insights?period=90', seedTask, async (client) => {
+      await setupSessions(client)
+      client.failCalendar = true
+    })
+    expect(await heading('Insights')).toBeInTheDocument()
+    expect(kpi('Completion rate')).toHaveTextContent('0%')
+    expect(kpi('Focus marked done')).toHaveTextContent('—')
+    workspace.failCalendar = false
+    await user.click(screen.getAllByRole('button', { name: 'Try again' })[0])
+    await waitFor(() => expect(kpi('Focus marked done')).toHaveTextContent('5 h'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
 

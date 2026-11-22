@@ -76,13 +76,13 @@ export function clockToMinutes(value: string): number | null {
 
 /** Token-based classes per category (background tint with dark text). */
 export const CATEGORY_CLASSES: Record<EventCategory, string> = {
-  work_session: 'bg-category-work text-night',
-  study: 'bg-category-study text-night',
-  meeting: 'bg-category-meeting text-night',
-  focus: 'bg-category-focus text-night',
-  personal: 'bg-category-personal text-night',
-  break: 'bg-category-break text-night',
-  other: 'bg-category-other text-night',
+  work_session: 'bg-category-work text-on-tint',
+  study: 'bg-category-study text-on-tint',
+  meeting: 'bg-category-meeting text-on-tint',
+  focus: 'bg-category-focus text-on-tint',
+  personal: 'bg-category-personal text-on-tint',
+  break: 'bg-category-break text-on-tint',
+  other: 'bg-category-other text-on-tint',
 }
 
 /** CSS variable per category, for the calendar library (it sets colours inline). */

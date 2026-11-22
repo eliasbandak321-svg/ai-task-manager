@@ -9,6 +9,7 @@ import { AI_LIMITS, type Proposal } from '../domain'
 import { useToast } from '../hooks/toast'
 import { useAiStatusQuery, useChat, useConversationsQuery, useDeleteConversation, useMessagesQuery, useProposalsQuery } from '../hooks/workspaceQueries'
 import { errorMessage } from '../lib/format'
+import { useIsDemo } from '../demo/demoContext'
 
 const SUGGESTIONS = ['What is due this week?', 'What should I focus on today?', 'Schedule my week', 'How am I doing?']
 
@@ -67,25 +68,38 @@ export function AssistantPage() {
     }
   }
 
+  const isPortfolioDemo = useIsDemo()
   return (
     <div className="space-y-6">
       <title>AI Assistant · AI Task Manager</title>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="flex flex-wrap items-center gap-3 font-display text-h2 font-semibold text-ink">
+          <h1 className="flex flex-wrap items-center gap-3 font-display text-page font-semibold text-ink">
             AI Assistant {status.data && <SourceBadge source={status.data.provider} />}
           </h1>
           <p className="mt-1 text-ink-muted">Ask about your tasks and calendar. Suggested changes wait for your approval.</p>
         </div>
-        <Link to="/app/assistant/plan" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-glow px-5 text-sm font-semibold text-night hover:bg-glow-strong">
+        <Link to="/app/assistant/plan" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-btn px-5 text-sm font-medium text-btn-ink hover:bg-btn-hover">
           <Wand2 aria-hidden="true" className="size-4" /> Plan a new goal
         </Link>
       </div>
 
-      {status.data?.isDemo && (
-        <p className="rounded-control border border-priority-medium/50 p-3 text-sm text-ink">
-          Demo mode: answers come from built-in rules over your real data, not from a language model. No AI service is connected.
-        </p>
+      {isPortfolioDemo ? (
+        <div className="space-y-1 rounded-control border border-priority-medium/50 p-3 text-sm text-ink">
+          <p>
+            <strong className="font-semibold">Simulated AI.</strong> In this demo the assistant gives canned, rule-based answers in your
+            browser. No language model or AI service is contacted.
+          </p>
+          <p className="text-ink-muted">
+            Try “Set Apply to Northwind Labs to high priority” to get a change to approve, or ask about your open tasks.
+          </p>
+        </div>
+      ) : (
+        status.data?.isDemo && (
+          <p className="rounded-control border border-priority-medium/50 p-3 text-sm text-ink">
+            Demo mode: answers come from built-in rules over your real data, not from a language model. No AI service is connected.
+          </p>
+        )
       )}
 
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
@@ -138,7 +152,7 @@ export function AssistantPage() {
               return (
                 <article key={message.id} className={message.role === 'user' ? 'ml-auto max-w-[85%]' : 'max-w-[95%]'}>
                   <h3 className="sr-only">{message.role === 'user' ? 'You' : 'Assistant'}</h3>
-                  <div className={`rounded-card p-3 text-sm ${message.role === 'user' ? 'bg-glow-deep text-ink' : 'border border-line bg-raised text-ink'}`}>
+                  <div className={`rounded-card p-3 text-sm ${message.role === 'user' ? 'bg-btn text-btn-ink' : 'border border-line bg-raised text-ink'}`}>
                     {message.role === 'assistant' && (
                       <div className="mb-1">
                         <SourceBadge source={message.source} />

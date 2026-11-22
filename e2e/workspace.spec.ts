@@ -61,15 +61,22 @@ test.describe('AI workspace and calendar', () => {
     const agenda = page.getByRole('region', { name: 'Agenda' })
     await expect(agenda.getByText('Task: Define the portfolio goals').first()).toBeVisible()
 
-    // A manual, repeating event, then one occurrence edited on its own.
+    // A manual, repeating event, then one occurrence edited on its own. It starts today (in the
+    // test's Europe/Berlin time zone) at a fixed time, not the dialog's default (which can be
+    // tomorrow late at night), and is counted in the month view: a month grid always shows days
+    // after today, while the week view shows only one occurrence when today is a Sunday.
+    const today = await page.evaluate(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date())) // YYYY-MM-DD, the app's today
     await page.getByRole('button', { name: 'New event' }).click()
     const eventDialog = page.getByRole('dialog', { name: 'New event' })
     await eventDialog.getByRole('textbox', { name: 'Title' }).fill('Gym')
+    await eventDialog.getByLabel('Starts').fill(`${today}T07:00`)
+    await eventDialog.getByLabel('Ends').fill(`${today}T08:00`)
     await eventDialog.getByRole('combobox', { name: 'Category' }).selectOption('personal')
     await eventDialog.getByRole('combobox', { name: 'Repeats' }).selectOption('daily')
     await eventDialog.getByRole('button', { name: 'Save' }).click()
     await expect(eventDialog).toBeHidden()
-    await expect(agenda.getByRole('button', { name: /^Edit Gym at/ }).first()).toBeVisible()
+    await page.getByRole('button', { name: 'Month', exact: true }).click()
+    await expect(agenda.getByRole('button', { name: /^Edit Gym at/ }).nth(1)).toBeVisible()
     const gymCount = await agenda.getByRole('button', { name: /^Edit Gym at/ }).count()
     expect(gymCount).toBeGreaterThan(1)
     await agenda.getByRole('button', { name: /^Edit Gym at/ }).first().click()
@@ -100,7 +107,7 @@ test.describe('AI workspace and calendar', () => {
     // Everything is still there after signing out and in again.
     await signOut(page)
     await signIn(page, email)
-    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /^Today,/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Upcoming sessions' })).toBeVisible()
     await nav.getByRole('link', { name: 'Calendar' }).click()
     await expect(page.getByRole('region', { name: 'Agenda' }).getByText('Long gym session')).toBeVisible()

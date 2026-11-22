@@ -8,8 +8,8 @@ type ButtonLinkProps = {
 } & ({ to: string; href?: never } | { href: string; to?: never })
 
 const variants = {
-  primary: 'bg-glow text-night shadow-glow hover:bg-glow-strong',
-  secondary: 'border border-line-strong bg-surface/60 text-ink hover:border-ink-subtle',
+  primary: 'bg-btn text-btn-ink hover:bg-btn-hover',
+  secondary: 'border border-line-strong bg-surface/70 text-ink backdrop-blur-sm hover:border-ink',
 }
 
 /**
@@ -18,7 +18,7 @@ const variants = {
  * Use `to` for app routes (client-side navigation) and `href` for in-page anchors.
  */
 export function ButtonLink({ children, variant = 'primary', className = '', ...target }: ButtonLinkProps) {
-  const classes = `inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold transition duration-(--duration-base) ease-out-expo motion-safe:hover:-translate-y-0.5 ${variants[variant]} ${className}`
+  const classes = `inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-6 text-sm font-medium transition duration-(--duration-base) ease-out-expo motion-safe:hover:-translate-y-0.5 ${variants[variant]} ${className}`
 
   return target.to !== undefined ? (
     <Link to={target.to} className={classes}>

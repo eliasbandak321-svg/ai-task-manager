@@ -22,7 +22,7 @@ import {
   useUpdateEvent,
   useUserTimeZone,
 } from '../hooks/workspaceQueries'
-import { errorMessage } from '../lib/format'
+import { errorMessage, formatIsoDate } from '../lib/format'
 import { CATEGORY_CLASSES, formatClock, formatDayHeading, formatMinutes, zonedDate, zonedDayRange } from '../lib/time'
 
 // The calendar library is only downloaded when this page opens.
@@ -133,7 +133,7 @@ export function CalendarPage() {
       <title>Calendar · AI Task Manager</title>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-h2 font-semibold text-ink">Calendar</h1>
+          <h1 className="font-display text-page font-semibold text-ink">Calendar</h1>
           <p className="mt-1 text-ink-muted">Drag to move, drag the bottom edge to resize, or select a time to add an event.</p>
         </div>
         <Button variant="primary" onClick={newEvent}>
@@ -164,7 +164,7 @@ export function CalendarPage() {
         </Suspense>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,24rem)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(0,24rem)]">
         <section aria-labelledby="agenda-heading" className="rounded-card border border-line bg-surface p-5">
           <h2 id="agenda-heading" className="font-display text-h3 font-semibold text-ink">
             Agenda
@@ -275,7 +275,7 @@ export function CalendarPage() {
                     <span className="block truncate text-ink">{task.title}</span>
                     <span className="text-ink-muted">
                       {task.estimatedMinutes ? formatMinutes(task.estimatedMinutes) : 'No estimate'}
-                      {task.dueDate ? ` · due ${task.dueDate}` : ''}
+                      {task.dueDate ? ` · due ${formatIsoDate(task.dueDate, today)}` : ''}
                     </span>
                   </span>
                   <Button onClick={() => plan('fill', [task.id])} disabled={proposeSchedule.isPending} aria-label={`Schedule ${task.title}`}>

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 // vitest/config re-exports Vite's defineConfig and adds types for the `test` block.
@@ -5,6 +6,17 @@ import { defineConfig } from 'vitest/config'
 
 const webPort = Number(process.env.WEB_PORT ?? 5173)
 const apiTarget = `http://127.0.0.1:${process.env.API_PORT ?? 8787}`
+
+// Portfolio demo (M11): `VITE_DEMO=1` builds the browser-only demo into dist-demo/. Its preview
+// sends the production security headers from vercel.json, so the demo's end-to-end tests run
+// under the real CSP (which forbids every network request: connect-src 'none'). The normal
+// build's preview keeps proxying /api and sends no extra headers.
+const isDemo = process.env.VITE_DEMO === '1'
+interface VercelConfig {
+  headers: { source: string; headers: { key: string; value: string }[] }[]
+}
+const vercel = JSON.parse(readFileSync(new URL('./vercel.json', import.meta.url), 'utf8')) as VercelConfig
+const demoHeaders = Object.fromEntries(vercel.headers[0].headers.map(({ key, value }) => [key, value]))
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -17,7 +29,9 @@ export default defineConfig({
   // which the API's CSRF check would (rightly) refuse.
   // WEB_PORT and API_PORT exist for the end-to-end tests, which run on their own ports.
   server: { port: webPort, strictPort: true, proxy: { '/api': { target: apiTarget, xfwd: true } } },
-  preview: { port: webPort, strictPort: true, proxy: { '/api': { target: apiTarget, xfwd: true } } },
+  preview: isDemo ? { port: webPort, strictPort: true, headers: demoHeaders } : { port: webPort, strictPort: true, proxy: { '/api': { target: apiTarget, xfwd: true } } },
+  // No module-preload polyfill in the demo: it uses fetch(), which the demo's CSP forbids.
+  build: isDemo ? { outDir: 'dist-demo', modulePreload: { polyfill: false } } : {},
   test: {
     // Half the CPU cores: each worker runs its own jsdom or database, and with every core busy,
     // machines with little memory (e.g. a default WSL setup) start swapping and tests time out.

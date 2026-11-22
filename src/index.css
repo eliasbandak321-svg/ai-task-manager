@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/sora";
+@import "@fontsource/instrument-serif/400-italic.css";
 
 /*
   Design tokens. Source of truth: docs/design.md. Change the spec first, then this file.
@@ -19,44 +20,74 @@
   */
   --color-*: initial;
 
-  /* Core palette */
-  --color-night: #01061a;
-  --color-ink: #ffffff;
-  --color-glow: #7fd4ff;
-  --color-glow-strong: #a8e3ff;
-  --color-glow-deep: #2563eb;
-  --color-surface: #070d24;
-  --color-raised: #0d1530;
-  --color-ink-muted: #a6b0c8;
-  --color-ink-subtle: #7d88a6;
-  --color-line: #1c2647;
-  --color-line-strong: #2c3a66;
+  /*
+    Colour tokens (M10). The values here are the LIGHT theme; the dark theme overrides the same
+    variables in @layer base below, so every utility (bg-night, text-ink, border-line, …) switches
+    theme without component changes. Names are kept from M3–M9 for compatibility:
+      night = page background, surface/raised = cards and inset areas, ink = text,
+      glow = the accent (links, focus, active states), btn = the primary button.
+  */
+  --color-night: #fafcfd;
+  --color-ink: #111318;
+  --color-glow: #0f6f86;
+  --color-glow-strong: #0b5a6d;
+  --color-glow-deep: #4f46c8;
+  --color-surface: #ffffff;
+  --color-raised: #f2f6f9;
+  --color-ink-muted: #56657a;
+  --color-ink-subtle: #5f6e83;
+  --color-line: #e2e9f0;
+  --color-line-strong: #cfd9e3;
   /* Form control borders: at least 3:1 against night, surface and raised (WCAG non-text contrast). */
-  --color-line-input: #5d6a94;
-  /* Destructive actions and error text (night on danger = 8.98:1). */
-  --color-danger: #ff8a9b;
+  --color-line-input: #7a8a9f;
+  /* Destructive actions and error text. */
+  --color-danger: #b4233c;
+  --color-warn: #9a5b00;
+  --color-ok: #12795a;
+
+  /* Primary button: charcoal in light, near-white in dark (as on the approved landing page). */
+  --color-btn: #111318;
+  --color-btn-ink: #ffffff;
+  --color-btn-hover: #262a33;
+  /* A soft tint of the accent for selected rows and active navigation. */
+  --color-accent-soft: #e6f7fa;
+
+  /* Identity colours: soft fills (glows, gradients) and their stronger "line" versions (thin
+     lines, chart bars, dots). Decorative only: never the sole carrier of meaning. */
+  --color-cyan: #8edfe9;
+  --color-mint: #b8f5e8;
+  --color-sky: #a9cfff;
+  --color-lav: #c8c5ff;
+  --color-line-cyan: #46c3d3;
+  --color-line-mint: #5fd6bd;
+  --color-line-sky: #6aa6f2;
+  --color-line-lav: #8f89f0;
 
   /* Status and priority (used from M5) */
-  --color-status-todo: #a6b0c8;
-  --color-status-progress: #7fd4ff;
-  --color-status-done: #6ee7b7;
-  --color-priority-high: #ff8a9b;
-  --color-priority-medium: #ffc978;
-  --color-priority-low: #a6b0c8;
+  --color-status-todo: #56657a;
+  --color-status-progress: #0f6f86;
+  --color-status-done: #12795a;
+  --color-priority-high: #b4233c;
+  --color-priority-medium: #9a5b00;
+  --color-priority-low: #56657a;
 
-  /* Calendar event categories (M9). Each is a light tint, so night-coloured text on it stays
-     above 7:1; the category name is always shown as text too, never by colour alone. */
-  --color-category-work: #7fd4ff;
-  --color-category-study: #b9a7ff;
-  --color-category-meeting: #ffc978;
-  --color-category-focus: #6ee7b7;
-  --color-category-personal: #ffa8d2;
-  --color-category-break: #c4ccdf;
-  --color-category-other: #a6b0c8;
+  /* Calendar event categories (M9). Light tints in both themes, always with on-tint text
+     (above 7:1); the category name is always shown as text too, never by colour alone. */
+  --color-category-work: #bfeef4;
+  --color-category-study: #dcd9ff;
+  --color-category-meeting: #ffe0c2;
+  --color-category-focus: #c9f5e8;
+  --color-category-personal: #ffd6e8;
+  --color-category-break: #e3e8ef;
+  --color-category-other: #e8edf2;
+  --color-on-tint: #0b1018;
 
   /* Typography */
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Sora Variable", ui-sans-serif, system-ui, sans-serif;
+  /* Only for the italic accent word on the landing page ("focus."). */
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, monospace;
 
   --text-display: clamp(2.5rem, 1.5rem + 4.5vw, 4.75rem);
   --text-display--line-height: 1.05;
@@ -65,6 +96,11 @@
   --text-h2: clamp(2rem, 1.5rem + 2vw, 3rem);
   --text-h2--line-height: 1.15;
   --text-h2--letter-spacing: -0.02em;
+
+  /* Page titles inside the app (M10): calmer than the marketing headings. */
+  --text-page: clamp(1.6rem, 1.3rem + 1.1vw, 2.1rem);
+  --text-page--line-height: 1.15;
+  --text-page--letter-spacing: -0.03em;
 
   --text-h3: 1.25rem;
   --text-h3--line-height: 1.35;
@@ -89,8 +125,9 @@
   --radius-control: 0.75rem;
 
   /* Effects */
-  --shadow-glow: 0 0 2.5rem -0.5rem rgb(127 212 255 / 0.45);
-  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset;
+  --shadow-glow: 0 0 2rem -0.5rem rgb(70 195 211 / 0.45);
+  --shadow-card: 0 1px 2px rgb(17 19 24 / 0.04), 0 24px 60px -28px rgb(30 60 90 / 0.28);
+  --shadow-soft: 0 1px 2px rgb(17 19 24 / 0.05), 0 6px 16px -10px rgb(30 60 90 / 0.25);
 
   /* Motion */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -117,8 +154,50 @@
     --duration-slow: 700ms;
     --duration-fade: 1200ms;
 
-    /* Tells the browser to draw native UI (scrollbars, form controls) in dark mode. */
+    /* Native UI (scrollbars, form controls) follows the active theme. */
+    color-scheme: light;
+  }
+
+  /*
+    Dark theme (M10). Applied when the user chose "dark", or chose "system" (no data-theme)
+    and the device prefers dark. The choice is stored by src/lib/theme.ts and applied before
+    first paint by the inline script in index.html, so there is no flash of the wrong theme.
+  */
+  :root[data-theme="dark"] {
+    --color-night: #0b1018; --color-ink: #f5f7fa; --color-glow: #7fdcea; --color-glow-strong: #a8ecf4; --color-glow-deep: #b2abff;
+    --color-surface: #111824; --color-raised: #162031; --color-ink-muted: #a5b2c3; --color-ink-subtle: #8b98ab;
+    --color-line: #212c3d; --color-line-strong: #2e3b50; --color-line-input: #64758f;
+    --color-danger: #ff8a9b; --color-warn: #f2b85b; --color-ok: #5fdcae;
+    --color-btn: #f5f7fa; --color-btn-ink: #0b1018; --color-btn-hover: #dfe6ee; --color-accent-soft: #12303a;
+    --color-cyan: #41c8d9; --color-mint: #65d9c8; --color-sky: #568df0; --color-lav: #9187ea;
+    --color-line-cyan: #6fdeec; --color-line-mint: #7fe8d5; --color-line-sky: #86b0ff; --color-line-lav: #b2abff;
+    --color-status-todo: #a5b2c3; --color-status-progress: #7fdcea; --color-status-done: #5fdcae;
+    --color-priority-high: #ff8a9b; --color-priority-medium: #f2b85b; --color-priority-low: #a5b2c3;
+    --color-category-work: #7fd4ff; --color-category-study: #b9a7ff; --color-category-meeting: #ffc978; --color-category-focus: #6ee7b7;
+    --color-category-personal: #ffa8d2; --color-category-break: #c4ccdf; --color-category-other: #a6b0c8;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 30px 70px -30px rgb(0 0 0 / 0.8);
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 20px -12px rgb(0 0 0 / 0.7);
+    --shadow-glow: 0 0 2.5rem -0.5rem rgb(111 222 236 / 0.35);
     color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-night: #0b1018; --color-ink: #f5f7fa; --color-glow: #7fdcea; --color-glow-strong: #a8ecf4; --color-glow-deep: #b2abff;
+    --color-surface: #111824; --color-raised: #162031; --color-ink-muted: #a5b2c3; --color-ink-subtle: #8b98ab;
+    --color-line: #212c3d; --color-line-strong: #2e3b50; --color-line-input: #64758f;
+    --color-danger: #ff8a9b; --color-warn: #f2b85b; --color-ok: #5fdcae;
+    --color-btn: #f5f7fa; --color-btn-ink: #0b1018; --color-btn-hover: #dfe6ee; --color-accent-soft: #12303a;
+    --color-cyan: #41c8d9; --color-mint: #65d9c8; --color-sky: #568df0; --color-lav: #9187ea;
+    --color-line-cyan: #6fdeec; --color-line-mint: #7fe8d5; --color-line-sky: #86b0ff; --color-line-lav: #b2abff;
+    --color-status-todo: #a5b2c3; --color-status-progress: #7fdcea; --color-status-done: #5fdcae;
+    --color-priority-high: #ff8a9b; --color-priority-medium: #f2b85b; --color-priority-low: #a5b2c3;
+    --color-category-work: #7fd4ff; --color-category-study: #b9a7ff; --color-category-meeting: #ffc978; --color-category-focus: #6ee7b7;
+    --color-category-personal: #ffa8d2; --color-category-break: #c4ccdf; --color-category-other: #a6b0c8;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 30px 70px -30px rgb(0 0 0 / 0.8);
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 20px -12px rgb(0 0 0 / 0.7);
+    --shadow-glow: 0 0 2.5rem -0.5rem rgb(111 222 236 / 0.35);
+    color-scheme: dark;
+    }
   }
 
   html {
@@ -130,7 +209,7 @@
   }
 
   ::selection {
-    background-color: rgb(127 212 255 / 0.3);
+    background-color: color-mix(in srgb, var(--color-line-cyan) 30%, transparent);
     color: var(--color-ink);
   }
 
@@ -265,20 +344,20 @@
   --fc-today-bg-color: color-mix(in srgb, var(--color-glow) 8%, transparent);
   --fc-now-indicator-color: var(--color-danger);
   --fc-highlight-color: color-mix(in srgb, var(--color-glow) 20%, transparent);
-  --fc-button-bg-color: var(--color-raised);
+  --fc-button-bg-color: var(--color-surface);
   --fc-button-border-color: var(--color-line-strong);
   --fc-button-text-color: var(--color-ink);
-  --fc-button-hover-bg-color: var(--color-line-strong);
+  --fc-button-hover-bg-color: var(--color-raised);
   --fc-button-hover-border-color: var(--color-ink-subtle);
-  --fc-button-active-bg-color: var(--color-glow);
-  --fc-button-active-border-color: var(--color-glow);
-  --fc-event-text-color: var(--color-night);
+  --fc-button-active-bg-color: var(--color-btn);
+  --fc-button-active-border-color: var(--color-btn);
+  --fc-event-text-color: var(--color-on-tint);
   color: var(--color-ink);
   font-size: var(--text-sm);
 }
 .calendar-theme .fc .fc-button-primary:not(:disabled).fc-button-active,
 .calendar-theme .fc .fc-button-primary:not(:disabled):active {
-  color: var(--color-night);
+  color: var(--color-btn-ink);
 }
 .calendar-theme .fc .fc-button {
   min-height: 2.75rem;
@@ -304,10 +383,123 @@
 }
 
 /*
-  Signed-in pages have a sticky header with the main navigation (about 7 rem tall). Any
+  Signed-in pages have a sticky top bar (4 rem tall, M10). Any
   scroll the browser makes — the skip link, focus moving into view, find-in-page — stops this
   far below the top, so content never lands underneath the header.
 */
 html:has(.app-shell) {
-  scroll-padding-top: 8rem;
+  scroll-padding-top: 5.5rem;
+}
+
+/*
+  M10 identity helpers. Colours come from tokens; the gradients combine the identity colours.
+*/
+@layer components {
+  /* The brand mark: a cyan–mint–sky–lavender ring around a square of the page colour. */
+  .brand-mark {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5625rem;
+    background: conic-gradient(from 210deg, var(--color-cyan), var(--color-mint), var(--color-sky), var(--color-lav), var(--color-cyan));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 10%, transparent);
+  }
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    inset: 0.5rem;
+    border-radius: 0.1875rem;
+    background: var(--color-night);
+  }
+  .avatar-gradient {
+    background: linear-gradient(135deg, var(--color-mint), var(--color-sky) 60%, var(--color-lav));
+  }
+  /* Active sidebar link: a short cyan-to-lavender marker on the sidebar edge. */
+  .nav-active::before {
+    content: "";
+    position: absolute;
+    left: -0.75rem;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, var(--color-line-cyan), var(--color-line-lav));
+  }
+  .app-sidebar {
+    background-image: radial-gradient(60% 140px at 20% 0, color-mix(in srgb, var(--color-mint) 28%, transparent), transparent 70%),
+      radial-gradient(50% 120px at 90% 0, color-mix(in srgb, var(--color-lav) 22%, transparent), transparent 70%);
+  }
+  /* A quiet wash of colour behind page headers in the app. */
+  .app-main {
+    background-image: radial-gradient(40% 220px at 8% 0, color-mix(in srgb, var(--color-mint) 16%, transparent), transparent 70%),
+      radial-gradient(40% 220px at 92% 0, color-mix(in srgb, var(--color-lav) 16%, transparent), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  /* Text with the cyan-to-lavender gradient (landing page accents only). */
+  .text-gradient {
+    background: linear-gradient(100deg, var(--color-glow) 10%, var(--color-glow-deep) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .animate-menu {
+    animation: menu-in var(--duration-fast) var(--ease-out-expo);
+  }
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
+}
+
+@layer components {
+  /* Today: the next session card and the suggestion card (soft identity gradients). */
+  .next-session {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-mint) 32%, var(--color-surface)), color-mix(in srgb, var(--color-sky) 22%, var(--color-surface)) 60%, color-mix(in srgb, var(--color-lav) 28%, var(--color-surface)));
+  }
+  .next-session::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--color-line-cyan), var(--color-line-lav), transparent);
+  }
+  .hint-card {
+    background: radial-gradient(80% 120% at 100% 0%, color-mix(in srgb, var(--color-lav) 22%, transparent), transparent 60%), var(--color-surface);
+  }
+}
+
+@layer components {
+  /* Progress bars (M10): a cyan-to-lavender fill on a soft track. */
+  .progress-identity::-webkit-progress-bar { background: var(--color-raised); border-radius: 9999px; }
+  .progress-identity::-webkit-progress-value { background: linear-gradient(90deg, var(--color-line-cyan), var(--color-line-lav)); border-radius: 9999px; }
+  .progress-identity::-moz-progress-bar { background: linear-gradient(90deg, var(--color-line-cyan), var(--color-line-lav)); border-radius: 9999px; }
+}
+
+@layer components {
+  /* Insights charts (M10) */
+  .chart-plot {
+    background-image: linear-gradient(var(--color-line) 1px, transparent 1px);
+    background-size: 100% 25%;
+  }
+  .chart-bar:hover,
+  .chart-bar:focus-visible {
+    background: color-mix(in srgb, var(--color-glow) 7%, transparent);
+  }
+  .bar-done {
+    background: linear-gradient(180deg, var(--color-line-cyan), color-mix(in srgb, var(--color-line-cyan) 70%, var(--color-line-lav)));
+  }
+  .bar-focus {
+    background: var(--color-glow);
+  }
+  .bar-unmarked {
+    background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-warn) 55%, transparent) 0 3px, transparent 3px 6px);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-warn) 60%, transparent);
+  }
+  .bar-planned {
+    background: color-mix(in srgb, var(--color-line-lav) 75%, var(--color-surface));
+  }
 }

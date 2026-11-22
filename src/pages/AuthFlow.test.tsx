@@ -46,7 +46,9 @@ function renderApp(path: string, { signedIn = false, repository = new LocalRepos
 }
 
 const location = () => screen.getByTestId('location').textContent
-const heading = (name: string) => screen.findByRole('heading', { level: 1, name })
+const heading = (name: string | RegExp) => screen.findByRole('heading', { level: 1, name })
+// The Today page's title is the date; screen readers hear "Today, <weekday>, <date>" (M10).
+const TODAY_HEADING = /^Today,/
 
 async function fillLogin(user: ReturnType<typeof userEvent.setup>, email: string, password: string) {
   await user.type(await screen.findByRole('textbox', { name: 'Email' }), email)
@@ -64,8 +66,11 @@ describe('signing in', () => {
     await fillLogin(user, TEST_USER.email, TEST_PASSWORD)
     expect(await heading('All tasks')).toBeInTheDocument()
     expect(location()).toBe('/app/projects?q=report')
-    expect(screen.getByText(TEST_USER.name)).toBeInTheDocument()
-    expect(screen.getByText(TEST_USER.email)).toBeInTheDocument()
+    // Who is signed in: the account button names the user, its menu shows the email (M10).
+    const account = screen.getByRole('button', { name: `Account: ${TEST_USER.name}` })
+    await user.click(account)
+    expect(within(screen.getByRole('menu', { name: 'Account' })).getByText(TEST_USER.email)).toBeInTheDocument()
+    await user.keyboard('{Escape}')
   })
 
   it('explains wrong credentials and invalid input without signing in', async () => {
@@ -84,13 +89,13 @@ describe('signing in', () => {
   it('ignores a "next" link that points to another website (no open redirect)', async () => {
     const { user } = renderApp('/login?next=https%3A%2F%2Fevil.example%2Fphish')
     await fillLogin(user, TEST_USER.email, TEST_PASSWORD)
-    expect(await heading('Dashboard')).toBeInTheDocument()
+    expect(await heading(TODAY_HEADING)).toBeInTheDocument()
     expect(location()).toBe('/app')
   })
 
   it('takes signed-in users straight past the login and sign-up pages', async () => {
     renderApp('/login', { signedIn: true })
-    expect(await heading('Dashboard')).toBeInTheDocument()
+    expect(await heading(TODAY_HEADING)).toBeInTheDocument()
     expect(location()).toBe('/app')
   })
 })
@@ -118,7 +123,7 @@ describe('signing up (email confirmation required)', () => {
 
     authClient.confirmEmail('grace@example.test')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(await heading('Dashboard')).toBeInTheDocument()
+    expect(await heading(TODAY_HEADING)).toBeInTheDocument()
     expect(await screen.findByText('Nothing is due today or overdue.')).toBeInTheDocument()
   })
 
@@ -211,7 +216,8 @@ describe('signing out and expired sessions', () => {
     const { user, queryClient } = renderApp('/app/projects', { signedIn: true, repository })
 
     expect(await screen.findByRole('button', { name: 'Private task' })).toBeInTheDocument()
-    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Sign out' }))
+    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: /^Account:/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Sign out' }))
 
     expect(await heading('Sign in')).toBeInTheDocument()
     expect(location()).toBe('/login')
