@@ -309,7 +309,8 @@ CI (GitHub Actions) runs lint, typecheck, tests and the build on every pull requ
 |---|---|---|
 | Local (M3–M10) | `npm run dev` in WSL, on localhost: Vite on :5173 proxies `/api` to the API on 127.0.0.1:8787, which uses the **Neon `development` branch** (`DATABASE_PROVIDER=neon`, `DATABASE_URL` and `NEON_BRANCH_ID` in the git-ignored `.env`). Offline work uses PGlite only when chosen explicitly (`npm run dev:offline`) | All development and testing |
 | CI (throughout) | GitHub Actions on every PR and every push to `main` | Lint, typecheck, tests, production build |
-| Production (M11) | Vercel, deployed from `main`, using the Neon **`production`** branch | Public release after the final redesign and testing. Nothing touches the production branch before then |
+| Public demo (M11) | Vercel Hobby, static site from `main`: `npm run build:demo` (`VITE_DEMO=1`) into `dist-demo/`, configured by `vercel.json` | The real UI on browser-only sample data (`src/demo/`): no API, database, accounts, email or AI provider, and no environment variables. Data lives in the visitor's tab (`sessionStorage`). The CSP forbids every network request (`connect-src 'none'`) |
+| Production, full stack (later) | Vercel with the Neon **`production`** branch | Not deployed. Preparation (Google sign-in, SMTP email, account deletion, a bundled API function) is parked on `feature/m11-1-auth-deploy`. Nothing touches the production branch |
 
 Only free tiers are used. Enabling any paid service requires explicit approval first.
 
@@ -404,6 +405,7 @@ Deployment is postponed, so we design for it now to avoid surprises in M11:
 | 2026-11-13 | M9: AI spending in an app-wide ledger with atomic reservations, independent of user accounts (migration 0004) | Per-user cost rows would disappear with deleted accounts, and check-then-call let concurrent requests overshoot the cap |
 | 2026-11-13 | M9: the assistant sees task dependencies (`after="…"`) | Found in the first real tests: it advised starting a task before its prerequisite |
 | 2026-11-13 | `npm run db:backup` is the committed, self-verifying backup step before migrations | An ad-hoc backup script disappeared between sessions and its failure was masked; the migration (additive) ran without a fresh backup. Data was verified identical afterwards |
+| 2026-11-22 | M11: the public release is a static portfolio demo (`VITE_DEMO=1`), not the full-stack app | Visitors explore the real UI without an account, at zero cost and with no real data or paid AI at risk. Email without an owned domain couldn't be delivered reliably (Brevo's own guidance). The full-stack deployment work is kept on its branch |
 | 2026-11-10 | M10 is a complete visual redesign of the landing page and dashboard | Decided in the M5 review: the current look is a functional placeholder. Until M10, work goes into a complete, working application |
 | 2026-11-10 | M5: project navigation is a sidebar on large screens and a collapsible list on small ones | Projects need a permanent home on desktop; on phones the tasks stay first |
 | 2026-11-10 | M5: the dashboard is a lazy-loaded route (`/app/*`) | Keeps the landing page bundle within its 90 kB budget (88.6 kB gzip measured) |
